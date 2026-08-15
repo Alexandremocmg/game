@@ -2,12 +2,22 @@
 
 Endless runner 3D para navegador, feito para celular. Three.js + TypeScript + Vite.
 
+🎮 **Jogo Online (Demo Publicada):** [https://alexandremocmg.github.io/game/](https://alexandremocmg.github.io/game/)  
+📦 **Repositório GitHub:** [https://github.com/Alexandremocmg/game](https://github.com/Alexandremocmg/game)
+
 ```bash
 npm install
 npm run dev
 ```
 
 Abre em `http://localhost:5173`. Adicione `?debug` para o HUD com FPS, draw calls e triângulos.
+
+## Deploy e Publicação
+
+- **URL Pública:** [https://alexandremocmg.github.io/game/](https://alexandremocmg.github.io/game/)
+- **Repositório GitHub:** [https://github.com/Alexandremocmg/game](https://github.com/Alexandremocmg/game)
+- **CI/CD:** O deploy é realizado automaticamente via **GitHub Actions** (`.github/workflows/deploy.yml`). A cada push na branch `main`, a aplicação é compilada pelo Vite e publicada no GitHub Pages.
+
 
 ## Como jogar
 
