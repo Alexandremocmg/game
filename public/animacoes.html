@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Inspeção de animações</title>
+<style>
+  :root { color-scheme: dark; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #12161f; color: #eef2f7; padding: 14px; }
+  h1 { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+  .sub { font-size: 12px; opacity: .6; margin-bottom: 14px; line-height: 1.5; }
+
+  .barra { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  button {
+    font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+    background: #222a38; color: #eef2f7; border: 1px solid #35405425;
+  }
+  button.on { background: #3b82f6; border-color: #3b82f6; }
+  label { font-size: 12px; display: inline-flex; align-items: center; gap: 6px; opacity: .85; }
+
+  #palco { width: 100%; aspect-ratio: 4 / 3; background: #1b2230; border-radius: 12px; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .linha { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .info { font: 12px ui-monospace, Menlo, Consolas, monospace; opacity: .7; }
+  input[type=range] { flex: 1; min-width: 140px; }
+  .aviso { margin-top: 14px; font-size: 12px; opacity: .55; line-height: 1.6; border-top: 1px solid #2a3344; padding-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>Inspeção de animações</h1>
+  <p class="sub">
+    Nada disto está no jogo. Serve para você olhar cada clipe rodando em loop, de qualquer
+    ângulo, e decidir o que presta. Arraste para girar a câmera.
+  </p>
+
+  <div class="barra" id="clipes"></div>
+
+  <div class="barra">
+    <button id="btnGirar" class="on">girar câmera</button>
+    <button id="btnJogo">ângulo do jogo</button>
+    <button id="btnEsqueleto">mostrar ossos</button>
+    <button id="btnChao">grade</button>
+    <label><input type="checkbox" id="chkPortico" /> linha do pórtico (1,05)</label>
+  </div>
+
+  <div id="palco"></div>
+
+  <div class="linha">
+    <span class="info" id="velLabel">velocidade 1.0×</span>
+    <input type="range" id="vel" min="0" max="200" value="100" />
+  </div>
+  <div class="linha"><span class="info" id="detalhe"></span></div>
+
+  <p class="aviso">
+    A linha vermelha marca a altura por onde o personagem precisa passar no rolamento
+    (base do pórtico, y=1,05). Se o corpo cruzar essa linha durante o clipe de rolamento,
+    a animação não serve.
+  </p>
+
+<script type="module">
+import * as THREE from '/node_modules/three/build/three.module.js';
+import { GLTFLoader } from '/node_modules/three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from '/node_modules/three/examples/jsm/loaders/DRACOLoader.js';
+
+const params = new URLSearchParams(location.search);
+const MODELO = params.get('m') ?? 'models/player_mixamo.glb';
+const ALTURA_ALVO = 1.7;   // mesma escala usada no jogo
+// Cada rig encara um lado: o do Mixamo precisa de 180°, o do Tripo precisava de 90°.
+const GIRO_JOGO = THREE.MathUtils.degToRad(Number(params.get('giro') ?? 180));
+
+const palco = document.getElementById('palco');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+palco.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b2230);
+scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+const sol = new THREE.DirectionalLight(0xffffff, 2.2);
+sol.position.set(4, 8, 5);
+scene.add(sol);
+
+const grade = new THREE.GridHelper(6, 12, 0x44506a, 0x2a3344);
+scene.add(grade);
+
+const portico = new THREE.Mesh(
+  new THREE.BoxGeometry(4, 0.03, 0.03),
+  new THREE.MeshBasicMaterial({ color: 0xff4444 }),
+);
+portico.position.y = 1.05;
+portico.visible = false;
+scene.add(portico);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
+let anguloCam = 0.6, alturaCam = 1.25, raioCam = 4.2, girando = true;
+
+// arrastar para girar / afastar
+let arrastando = false, ultimoX = 0, ultimoY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  arrastando = true; girando = false; btnGirar.classList.remove('on');
+  ultimoX = e.clientX; ultimoY = e.clientY;
+});
+addEventListener('pointerup', () => { arrastando = false; });
+addEventListener('pointermove', (e) => {
+  if (!arrastando) return;
+  anguloCam -= (e.clientX - ultimoX) * 0.01;
+  alturaCam = Math.max(0.15, Math.min(3.2, alturaCam - (e.clientY - ultimoY) * 0.01));
+  ultimoX = e.clientX; ultimoY = e.clientY;
+});
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  raioCam = Math.max(1.8, Math.min(9, raioCam + Math.sign(e.deltaY) * 0.4));
+}, { passive: false });
+
+const draco = new DRACOLoader(); draco.setDecoderPath('/draco/');
+const loader = new GLTFLoader(); loader.setDRACOLoader(draco);
+
+let mixer, acaoAtual, modelo, esqueleto;
+const relogio = new THREE.Clock();
+
+const elClipes = document.getElementById('clipes');
+const elDetalhe = document.getElementById('detalhe');
+const elVel = document.getElementById('vel');
+const elVelLabel = document.getElementById('velLabel');
+const btnGirar = document.getElementById('btnGirar');
+const btnEsqueleto = document.getElementById('btnEsqueleto');
+const btnChao = document.getElementById('btnChao');
+const chkPortico = document.getElementById('chkPortico');
+
+btnGirar.onclick = () => { girando = !girando; btnGirar.classList.toggle('on', girando); };
+
+// Reproduz exatamente o enquadramento da câmera do jogo (config.ts: CAMERA_POS/CAMERA_LOOK),
+// que é bem mais alta e distante do que a órbita de inspeção — é como vai aparecer de verdade.
+const btnJogo = document.getElementById('btnJogo');
+let modoJogo = false;
+btnJogo.onclick = () => {
+  modoJogo = !modoJogo;
+  btnJogo.classList.toggle('on', modoJogo);
+  if (modoJogo) { girando = false; btnGirar.classList.remove('on'); }
+};
+btnChao.onclick = () => { grade.visible = !grade.visible; btnChao.classList.toggle('on', grade.visible); };
+chkPortico.onchange = () => { portico.visible = chkPortico.checked; };
+btnEsqueleto.onclick = () => {
+  if (!esqueleto) return;
+  esqueleto.visible = !esqueleto.visible;
+  btnEsqueleto.classList.toggle('on', esqueleto.visible);
+};
+elVel.oninput = () => {
+  const v = elVel.value / 100;
+  elVelLabel.textContent = `velocidade ${v.toFixed(2)}×`;
+  if (acaoAtual) acaoAtual.timeScale = v;
+};
+
+const gltf = await loader.loadAsync(MODELO);
+modelo = gltf.scene;
+
+// mesma normalização de escala que o jogo faz
+const caixa = new THREE.Box3().setFromObject(modelo);
+const tam = new THREE.Vector3(); caixa.getSize(tam);
+modelo.scale.setScalar(tam.y > 0 ? ALTURA_ALVO / tam.y : 1);
+modelo.rotation.y = GIRO_JOGO;
+modelo.traverse((o) => { o.frustumCulled = false; });
+scene.add(modelo);
+
+esqueleto = new THREE.SkeletonHelper(modelo);
+esqueleto.visible = false;
+scene.add(esqueleto);
+
+mixer = new THREE.AnimationMixer(modelo);
+
+function tocar(clip) {
+  const nova = mixer.clipAction(clip);
+  nova.timeScale = elVel.value / 100;
+  if (acaoAtual && acaoAtual !== nova) acaoAtual.fadeOut(0.2);
+  nova.reset().fadeIn(0.2).play();
+  acaoAtual = nova;
+  elDetalhe.textContent = `${clip.name} · ${clip.duration.toFixed(2)}s · ${clip.tracks.length} tracks`;
+  [...elClipes.children].forEach((b) => b.classList.toggle('on', b.dataset.nome === clip.name));
+}
+
+// Ordem de importância no jogo, não a alfabética — a corrida é o que mais aparece.
+const ORDEM = ['run', 'jump', 'slide', 'fall', 'idle', 'hit'];
+const ordenados = [...gltf.animations].sort((a, b) => {
+  const ia = ORDEM.findIndex((n) => a.name.includes(n));
+  const ib = ORDEM.findIndex((n) => b.name.includes(n));
+  return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+});
+
+ordenados.forEach((clip, i) => {
+  const b = document.createElement('button');
+  b.textContent = clip.name.replace(/^preset:(biped:)?/, '');
+  b.dataset.nome = clip.name;
+  b.onclick = () => tocar(clip);
+  elClipes.appendChild(b);
+  if (i === 0) tocar(clip);
+});
+
+function ajustar() {
+  const w = palco.clientWidth, h = palco.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', ajustar);
+ajustar();
+
+renderer.setAnimationLoop(() => {
+  const dt = relogio.getDelta();
+  mixer.update(dt);
+  if (modoJogo) {
+    camera.position.set(0, 4.3, 8.5);   // CAMERA_POS do jogo
+    camera.lookAt(0, 1.4, -8);          // CAMERA_LOOK do jogo
+  } else {
+    if (girando) anguloCam += dt * 0.5;
+    camera.position.set(Math.sin(anguloCam) * raioCam, alturaCam, Math.cos(anguloCam) * raioCam);
+    camera.lookAt(0, 0.85, 0);
+  }
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

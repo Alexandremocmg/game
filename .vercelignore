@@ -1,0 +1,16 @@
+# Segredos — nunca sobem. A CLI da Vercel não respeita .gitignore, então
+# precisa estar listado aqui explicitamente.
+.env
+.env.*
+
+node_modules
+dist
+
+# Arquivos-fonte e versões descartadas de asset: ficam no repo, não no deploy
+assets-src
+animacoes capturadas de movimento real
+
+# Ferramentas de desenvolvimento
+scripts
+docs
+.claude

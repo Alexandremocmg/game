@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#2f6ea8" />
+  <title>Corrida Sem Fim</title>
+  <style>
+    :root {
+      --ink: #fffaf2;
+      --shadow: 0 2px 12px rgba(0, 0, 0, .45);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #1b2735;
+      /* Sem isto o navegador do celular rola a página ou dá zoom no swipe. */
+      touch-action: none;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #game { display: block; width: 100%; height: 100%; }
+
+    /* ------------------------------------------------------------------ HUD */
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      padding: calc(env(safe-area-inset-top) + 14px) 16px 0;
+      color: var(--ink);
+      text-shadow: var(--shadow);
+    }
+
+    #hud-score {
+      font-size: clamp(30px, 9vw, 52px);
+      font-weight: 800;
+      letter-spacing: -.02em;
+      line-height: 1;
+    }
+
+    #hud-coins-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: clamp(15px, 4.5vw, 22px);
+      font-weight: 700;
+    }
+
+    .coin-dot {
+      width: .8em;
+      height: .8em;
+      border-radius: 50%;
+      background: linear-gradient(160deg, #ffe08a, #f0a93c);
+      box-shadow: 0 0 8px rgba(255, 200, 80, .7);
+    }
+
+    /* --------------------------------------------------------- power-ups */
+    #hud-powerups {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 14px);
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+
+    .pu {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px 5px 6px;
+      border-radius: 999px;
+      background: rgba(12, 20, 32, .55);
+      backdrop-filter: blur(3px);
+      opacity: 0;
+      transform: translateX(8px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .pu.active { opacity: 1; transform: translateX(0); }
+
+    .pu-icon {
+      font-size: clamp(16px, 4.5vw, 20px);
+      line-height: 1;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5));
+    }
+
+    .pu-bar {
+      width: 34px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .22);
+      overflow: hidden;
+    }
+
+    .pu-fill {
+      height: 100%;
+      width: 100%;
+      background: var(--ink);
+      transform-origin: left;
+      transition: transform .1s linear;
+    }
+
+    #hud-debug {
+      position: fixed;
+      left: 8px;
+      bottom: calc(env(safe-area-inset-bottom) + 8px);
+      font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace;
+      color: #b7f7c8;
+      text-shadow: 0 1px 3px #000;
+    }
+
+    /* -------------------------------------------------------------- overlay */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 10px;
+      text-align: center;
+      padding: 24px;
+      color: var(--ink);
+      background: radial-gradient(ellipse at center, rgba(12, 20, 32, .35), rgba(12, 20, 32, .78));
+      backdrop-filter: blur(2px);
+      /* O overlay é só informativo — o toque real para iniciar/reiniciar é
+         tratado pelo listener anexado ao canvas, por baixo dele. Sem isto,
+         o overlay engole o toque e o jogo nunca sai da tela inicial. */
+      pointer-events: none;
+      transition: opacity .25s ease;
+    }
+
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+
+    #overlay-title {
+      font-size: clamp(28px, 8vw, 46px);
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-shadow: var(--shadow);
+    }
+
+    #overlay-body { font-size: clamp(14px, 4vw, 18px); line-height: 1.7; opacity: .92; }
+    #overlay-body ul { list-style: none; margin: 10px 0; }
+    #overlay-body b {
+      display: inline-block;
+      min-width: 1.6em;
+      padding: 1px 6px;
+      border: 1px solid rgba(255, 255, 255, .45);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .08);
+    }
+    #overlay-body .big {
+      font-size: clamp(46px, 15vw, 78px);
+      font-weight: 900;
+      line-height: 1.05;
+      margin: 4px 0;
+    }
+    #overlay-body .cta {
+      margin-top: 14px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 50% { opacity: .45; } }
+    @media (prefers-reduced-motion: reduce) {
+      #overlay-body .cta { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div id="hud-score">0</div>
+    <div id="hud-coins-row"><span class="coin-dot"></span><span id="hud-coins">0</span></div>
+  </div>
+
+  <div id="hud-powerups">
+    <div class="pu" id="pu-magnet"><span class="pu-icon">🧲</span><div class="pu-bar"><div class="pu-fill"></div></div></div>
+    <div class="pu" id="pu-jetpack"><span class="pu-icon">🚀</span><div class="pu-bar"><div class="pu-fill"></div></div></div>
+    <div class="pu" id="pu-multiplier"><span class="pu-icon">⭐</span><div class="pu-bar"><div class="pu-fill"></div></div></div>
+    <div class="pu" id="pu-board"><span class="pu-icon">🛹</span></div>
+  </div>
+
+  <div id="hud-debug"></div>
+
+  <div id="overlay">
+    <div id="overlay-title"></div>
+    <div id="overlay-body"></div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
