@@ -59,6 +59,7 @@ src/
     patterns.ts      padrões autorais de obstáculo, por faixa de dificuldade
     obstacleSpecs.ts caixas de colisão e geometria de reserva
     powerUpSpecs.ts  duração e modelo de cada power-up
+    themes.ts        paletas de ambiente e a progressão entre elas
   player/
     Player.ts        física, estados e animação do personagem
     Collision.ts     AABB com margem de perdão
@@ -80,6 +81,10 @@ src/
   a pontuação é acumulador próprio, para o multiplicador não distorcer a curva do jogo.
 - **Perdão de input.** Buffer de ~120ms e hitbox menor que o visual. É a maior parte da
   razão pela qual o jogo parece justo em vez de injusto.
+- **Temas trocam pela reciclagem.** Céu, névoa e luz são interpolados, mas pista e cenário
+  adotam o tema novo só quando cada peça dá a volta — e elas reciclam *além do alcance da
+  névoa*. A fronteira entre dois ambientes nasce invisível e vem chegando pelo horizonte,
+  em vez de o mundo piscar de cor. Ver `world/themes.ts`.
 
 ## Páginas auxiliares
 
@@ -126,8 +131,10 @@ ele devolve a bind pose, não a pose animada. Detalhes em
 
 ## Escopo
 
-Implementado: core loop, obstáculos e padrões por dificuldade, moedas, power-ups (ímã,
-jetpack, multiplicador, prancha), pós-processamento, áudio, personagem animado.
+Implementado: core loop, obstáculos e padrões por dificuldade, moedas com saldo persistido e
+"continuar" após a morte, power-ups (ímã, jetpack, multiplicador, prancha), pós-processamento,
+áudio, personagem animado e 3 temas de cenário (entardecer, noite, deserto) que se alternam
+conforme a distância.
 
 Fora: loja e economia, missões diárias, personagens destraváveis, ranking online,
 empacotamento em APK.

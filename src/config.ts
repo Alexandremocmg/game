@@ -76,21 +76,22 @@ export const SHAKE_IMPULSE = 0.09;
 export const SHAKE_DECAY = 0.6;
 
 // ---------------------------------------------------------------- visual
-export const FOG_NEAR = 45;
-export const FOG_FAR = 140;
-
-export const COLOR_SKY_TOP = 0x2f6ea8;
-export const COLOR_SKY_HORIZON = 0xf0b782;
-export const COLOR_FOG = 0xe3b189;
-
-export const COLOR_ROAD = 0x474d58;
-export const COLOR_ROAD_EDGE = 0x3a3f49;
-export const COLOR_CURB = 0xcfc9ba;
-export const COLOR_STRIPE = 0xefe4c4;
+/** Cor da cápsula de reserva, usada quando o modelo do personagem não carrega. */
 export const COLOR_PLAYER = 0xff7a4d;
 
-export const BUILDING_COLORS = [0x6b7a8f, 0x8a94a6, 0x55606f, 0x7d8598] as const;
 export const BUILDING_COUNT = 64;
+
+// ---------------------------------------------------------------- temas
+// As paletas vivem em `world/themes.ts`; aqui fica só a cadência da troca.
+
+/** Distância percorrida por tema, em unidades de mundo. */
+export const THEME_SEGMENT = 700;
+/**
+ * Trecho final de cada segmento em que céu, névoa e luz migram para o próximo
+ * tema. A pista e o cenário trocam por reciclagem, então já chegam prontos
+ * vindos de além da névoa — este valor governa só a parte interpolada.
+ */
+export const THEME_TRANSITION = 180;
 
 // ---------------------------------------------------------------- pontuação
 /** Pontos por unidade de distância percorrida. */

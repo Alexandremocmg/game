@@ -13,8 +13,9 @@ import { OBSTACLE_SPECS, type ObstacleKind } from '../world/obstacleSpecs';
 import { POWER_UP_SPECS, type PowerUpKind } from '../world/powerUpSpecs';
 import { Scenery } from '../world/Scenery';
 import { Spawner } from '../world/Spawner';
+import { TEMAS, temaEmDistancia } from '../world/themes';
 import { Track } from '../world/Track';
-import { FIXED_DT } from '../config';
+import { FIXED_DT, THEME_SEGMENT, THEME_TRANSITION } from '../config';
 import { AudioBus } from './Audio';
 import { Input } from './Input';
 import { Loop } from './Loop';
@@ -62,6 +63,9 @@ export class Game {
   private jetpackTimer = 0;
   private multiplierTimer = 0;
   private hasBoard = false;
+
+  /** Tema que pista e cenário adotam ao reciclar. Ver `atualizarTema`. */
+  private temaAlvo = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -133,8 +137,39 @@ export class Game {
     this.hasBoard = false;
     this.player.reset();
     this.spawner.reset();
+    // Toda corrida recomeça no primeiro tema, com pista e cenário já nele —
+    // sem isso a partida herdaria o ambiente de onde a anterior terminou.
+    this.temaAlvo = 0;
+    this.track.reset(TEMAS[0]!);
+    this.scenery.reset(TEMAS[0]!);
+    this.stage.aplicarTema(TEMAS[0]!, TEMAS[0]!, 0);
     this.input.clear();
     this.hud.hideOverlay();
+  }
+
+  /**
+   * Ajusta o ambiente à distância percorrida.
+   *
+   * Céu, névoa e luz são interpolados continuamente. Pista e cenário não: eles
+   * trocam quando o tema **alvo** muda, e a mudança só aparece conforme cada
+   * peça recicla — vindo de além da névoa. O resultado é a fronteira entre os
+   * dois ambientes chegando pelo horizonte enquanto o céu já migrou.
+   */
+  private atualizarTema(): void {
+    const p = temaEmDistancia(this.distance, THEME_SEGMENT, THEME_TRANSITION);
+    const atual = TEMAS[p.atual]!;
+    const proximo = TEMAS[p.proximo]!;
+
+    // Assim que a transição começa, o destino passa a ser o tema novo: as
+    // peças que reciclarem daqui em diante já nascem nele.
+    const alvo = p.t > 0 ? p.proximo : p.atual;
+    if (alvo !== this.temaAlvo) {
+      this.temaAlvo = alvo;
+      this.track.setTema(TEMAS[alvo]!);
+      this.scenery.setTema(TEMAS[alvo]!);
+    }
+
+    this.stage.aplicarTema(atual, proximo, p.t);
   }
 
   private revive(): void {
@@ -251,6 +286,16 @@ export class Game {
       draws: info.calls,
       triangles: info.triangles,
       chunkZs: this.track.debugZs,
+      tema: (() => {
+        const p = temaEmDistancia(this.distance, THEME_SEGMENT, THEME_TRANSITION);
+        return {
+          atual: TEMAS[p.atual]!.nome,
+          proximo: TEMAS[p.proximo]!.nome,
+          t: +p.t.toFixed(3),
+          alvo: TEMAS[this.temaAlvo]!.nome,
+          chunksNoTema: this.track.debugChunksNoTema,
+        };
+      })(),
       postEnabled: this.post.enabled,
       shake: this.shake,
       powerUps: {
@@ -433,6 +478,7 @@ export class Game {
     this.shake = Math.max(0, this.shake - SHAKE_DECAY * dt);
 
     const dz = this.speed * dt;
+    this.atualizarTema();
     this.track.update(dz);
     this.scenery.update(dz);
     this.spawner.update(dz, this.distance);

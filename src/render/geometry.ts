@@ -34,25 +34,40 @@ export function box(
   return paint(geo, color);
 }
 
-/** Céu em gradiente vertical, gerado em canvas — evita carregar textura de disco. */
-export function makeSkyTexture(top: number, horizon: number): THREE.Texture {
+/**
+ * Céu em gradiente vertical, gerado em canvas — evita carregar textura de disco.
+ *
+ * Devolve a textura junto de um `redesenhar`, em vez de uma textura pronta:
+ * durante a transição entre temas as cores mudam a cada frame, e criar uma
+ * `CanvasTexture` nova a cada vez geraria churn de GPU. Aqui o canvas e a
+ * textura são os mesmos do começo ao fim; só o conteúdo é reescrito.
+ */
+export function makeSkyGradient(top: number, horizon: number): {
+  texture: THREE.Texture;
+  redesenhar: (top: number, horizon: number) => void;
+} {
   const canvas = document.createElement('canvas');
   canvas.width = 4;
   canvas.height = 256;
-
   const ctx = canvas.getContext('2d')!;
-  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0.0, hex(top));
-  grad.addColorStop(0.55, mix(top, horizon, 0.45));
-  grad.addColorStop(0.85, hex(horizon));
-  grad.addColorStop(1.0, hex(horizon));
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.mapping = THREE.EquirectangularReflectionMapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  function redesenhar(corTopo: number, corHorizonte: number): void {
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0.0, hex(corTopo));
+    grad.addColorStop(0.55, mix(corTopo, corHorizonte, 0.45));
+    grad.addColorStop(0.85, hex(corHorizonte));
+    grad.addColorStop(1.0, hex(corHorizonte));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    texture.needsUpdate = true;
+  }
+
+  redesenhar(top, horizon);
+  return { texture, redesenhar };
 }
 
 /**

@@ -1,14 +1,18 @@
 import * as THREE from 'three';
-import {
-  BUILDING_COLORS, BUILDING_COUNT, CHUNK_RECYCLE_Z, TRACK_SPAN, TRACK_WIDTH,
-} from '../config';
+import { BUILDING_COUNT, CHUNK_RECYCLE_Z, TRACK_SPAN, TRACK_WIDTH } from '../config';
+import { TEMAS, type Tema } from './themes';
 
 /**
- * Prédios laterais em InstancedMesh — 1 draw call para o cenário inteiro.
+ * Cenário lateral em InstancedMesh — 1 draw call para o skyline inteiro.
  *
- * Não fazem parte dos chunks de propósito: rolando em ciclo próprio, a
- * repetição do cenário deixa de coincidir com a repetição da pista. Cada
- * prédio é re-sorteado ao dar a volta, então o skyline nunca se repete.
+ * Não faz parte dos chunks de propósito: rolando em ciclo próprio, a repetição
+ * do cenário deixa de coincidir com a repetição da pista. Cada peça é
+ * re-sorteada ao dar a volta, então o skyline nunca se repete — e é essa
+ * mesma reciclagem que traz o tema novo, peça por peça, sem troca brusca.
+ *
+ * As faixas de tamanho vêm do tema, não de constantes fixas: é o que
+ * transforma "torres altas e estreitas" da cidade em "formações baixas e
+ * largas" do deserto, reaproveitando a mesma caixa.
  */
 export class Scenery {
   private readonly mesh: THREE.InstancedMesh;
@@ -19,8 +23,11 @@ export class Scenery {
   private readonly sz = new Float32Array(BUILDING_COUNT);
   private readonly dummy = new THREE.Object3D();
   private readonly color = new THREE.Color();
+  private tema: Tema;
 
   constructor(scene: THREE.Scene) {
+    this.tema = TEMAS[0]!;
+
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     geometry.translate(0, 0.5, 0); // base na origem, para escalar só a altura
 
@@ -38,11 +45,28 @@ export class Scenery {
       this.randomize(i);
       // Na primeira distribuição espalhamos pelo trecho inteiro.
       this.zs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
-      this.mesh.setColorAt(i, this.color.setHex(pick(BUILDING_COLORS)));
     }
     this.writeMatrices();
 
     scene.add(this.mesh);
+  }
+
+  /**
+   * Define o tema das peças que reciclarem daqui em diante. As já visíveis
+   * mantêm a aparência anterior até darem a volta.
+   */
+  setTema(tema: Tema): void {
+    this.tema = tema;
+  }
+
+  /** Redistribui tudo já no tema dado — usado ao começar uma partida. */
+  reset(tema: Tema): void {
+    this.tema = tema;
+    for (let i = 0; i < BUILDING_COUNT; i++) {
+      this.randomize(i);
+      this.zs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
+    }
+    this.writeMatrices();
   }
 
   update(dz: number): void {
@@ -51,22 +75,27 @@ export class Scenery {
       if (z > CHUNK_RECYCLE_Z) {
         z -= TRACK_SPAN;
         this.randomize(i);
-        this.mesh.setColorAt(i, this.color.setHex(pick(BUILDING_COLORS)));
-        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
       }
       this.zs[i] = z;
     }
     this.writeMatrices();
   }
 
-  /** Sorteia forma e posição lateral. O Z é tratado por quem chama. */
+  /** Sorteia forma, posição lateral e cor a partir do tema. O Z é de quem chama. */
   private randomize(i: number): void {
+    const t = this.tema;
     const side = Math.random() < 0.5 ? -1 : 1;
     const margin = TRACK_WIDTH / 2 + 3.5;
+    const [largMin, largMax] = t.predioLargura;
+    const [altMin, altMax] = t.predioAltura;
+
     this.xs[i] = side * (margin + Math.random() * 20);
-    this.sx[i] = 3 + Math.random() * 4.5;
-    this.sz[i] = 3 + Math.random() * 4.5;
-    this.sy[i] = 5 + Math.random() * 24;
+    this.sx[i] = largMin + Math.random() * (largMax - largMin);
+    this.sz[i] = largMin + Math.random() * (largMax - largMin);
+    this.sy[i] = altMin + Math.random() * (altMax - altMin);
+
+    this.mesh.setColorAt(i, this.color.setHex(pick(t.predios)));
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   private writeMatrices(): void {
