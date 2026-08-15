@@ -39,6 +39,18 @@ export interface Tema {
   hemiCeu: number;
   hemiChao: number;
   hemiIntensidade: number;
+
+  // --- pós-processamento
+  /** Força do brilho. A noite quer bloom forte (neon, faixas); o deserto, fraco. */
+  bloomIntensidade: number;
+  /** Acima de que luminância o pixel começa a brilhar. Cena clara pede limiar alto,
+   *  senão o quadro inteiro estoura. */
+  bloomLimiar: number;
+  vinheta: number;
+  /** -1 a 1. Positivo satura (deserto), negativo lava a cor (noite). */
+  saturacao: number;
+  brilho: number;
+  contraste: number;
 }
 
 export const TEMAS: readonly Tema[] = [
@@ -61,6 +73,12 @@ export const TEMAS: readonly Tema[] = [
     hemiCeu: 0x2f6ea8,
     hemiChao: 0x50463c,
     hemiIntensidade: 1.15,
+    bloomIntensidade: 0.65,
+    bloomLimiar: 0.7,
+    vinheta: 0.5,
+    saturacao: 0,
+    brilho: 0.015,
+    contraste: 0.06,
   },
   {
     nome: 'noite',
@@ -88,6 +106,16 @@ export const TEMAS: readonly Tema[] = [
     hemiCeu: 0x3a2a70,
     hemiChao: 0x14161f,
     hemiIntensidade: 1.0,
+    // Limiar baixo e intensidade alta: é o que faz faixas, moedas e acentos
+    // neon brilharem de verdade no escuro — o efeito que define a noite.
+    bloomIntensidade: 1.15,
+    bloomLimiar: 0.5,
+    vinheta: 0.62,
+    // Levemente lavado: à noite o olho perde saturação, e o contraste faz o
+    // que sobra de cor (o neon) saltar mais.
+    saturacao: -0.08,
+    brilho: 0,
+    contraste: 0.12,
   },
   {
     nome: 'deserto',
@@ -109,6 +137,14 @@ export const TEMAS: readonly Tema[] = [
     hemiCeu: 0x9fb6e0,
     hemiChao: 0x8a6a45,
     hemiIntensidade: 1.3,
+    // Cena clara pede limiar alto e bloom fraco: com os valores da noite o
+    // quadro inteiro estouraria de branco.
+    bloomIntensidade: 0.4,
+    bloomLimiar: 0.82,
+    vinheta: 0.36,
+    saturacao: 0.12,
+    brilho: 0.01,
+    contraste: 0.04,
   },
 ];
 

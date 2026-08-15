@@ -143,6 +143,7 @@ export class Game {
     this.track.reset(TEMAS[0]!);
     this.scenery.reset(TEMAS[0]!);
     this.stage.aplicarTema(TEMAS[0]!, TEMAS[0]!, 0);
+    this.post.aplicarTema(TEMAS[0]!, TEMAS[0]!, 0);
     this.input.clear();
     this.hud.hideOverlay();
   }
@@ -170,6 +171,7 @@ export class Game {
     }
 
     this.stage.aplicarTema(atual, proximo, p.t);
+    this.post.aplicarTema(atual, proximo, p.t);
   }
 
   private revive(): void {

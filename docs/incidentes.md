@@ -110,7 +110,26 @@ tipo de entrada não aparece testando o outro.
 
 ---
 
-## 7. Duas ações compartilhando o mesmo clipe
+## 7. Pós-processamento se desligando sozinho no aparelho certo
+
+**Sintoma:** nenhum. Bloom, vinheta e color grade simplesmente não apareciam — e como o jogo
+continuava rodando bem, ninguém notava que metade do tratamento visual estava ausente.
+
+**Causa:** a sonda de degradação automática (`Post.probe`) desliga o efeito em definitivo após
+3 segundos de FPS abaixo de 48. Só que os primeiros segundos são *sempre* lentos: compilação
+de shader, upload de textura para a GPU, e a média móvel de FPS do `Loop` partindo de zero.
+Esse aquecimento era lido como "aparelho fraco". Medido num aparelho a **60fps cravados**:
+`lowFpsTime` já chegava a 3,28 s antes do primeiro frame estável, e o efeito nascia desligado.
+
+**Correção:** carência de 4 s antes de a sonda começar a julgar, e ignorar leitura de FPS igual
+a zero (média ainda não formada).
+
+**Lição:** um mecanismo de degradação automática precisa de carência. Sem ela, ele mede o
+aquecimento em vez do desempenho — e o modo degradado é justamente o que ninguém percebe.
+
+---
+
+## 8. Duas ações compartilhando o mesmo clipe
 
 **Sintoma:** o pulo congelou — o personagem ficava parado no ar.
 
