@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  base: './',
   server: {
     host: true, // expõe na rede local para teste em celular via adb reverse
     port: 5173,
