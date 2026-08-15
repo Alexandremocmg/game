@@ -97,16 +97,26 @@ dos ossos**, não estimados:
 | `run` | `run` | inteiro, em loop | — |
 | `jump` | `jump` | 15%–95% | impulso começa em 15%, aterrissagem termina em 95% |
 | `roll` | `slide` | 22%–62% | corpo fica abaixo do pórtico (1,05) nessa faixa; topo chega a 0,46 |
-| `fly` | `jump` congelado em 45% | — | ver pendência abaixo |
+| `fly` | `fall` | inteiro, em loop | Falling Idle, clipe próprio |
 
 A hitbox do rolamento encolhe no instante do comando, então a janela **não** pode começar
 no agachamento inicial: o visual ficaria em pé enquanto a colisão já diz que passa por baixo.
 Começando em 22%, o corpo passa 93% do rolamento abaixo do pórtico (contra 76% começando em 18%).
 
+O fade entre estados também conta: 0,12 s numa ação de 0,48 s é um quarto dela com o corpo no
+meio do caminho. O rolamento usa 0,05 s.
+
+## Integridade dos arquivos
+
+`npm run validate:assets` confere a estrutura de cada GLB e roda no `build` e na Action.
+
+Isso não é zelo excessivo: os 9 GLB já foram corrompidos de uma vez só por um
+localizar-e-substituir global, e o jogo **não quebrou** — degradou em silêncio para a geometria
+de reserva e foi ao ar assim. Se algum dia o personagem voltar a aparecer como cápsula, rode a
+validação antes de investigar o código. Histórico completo em [incidentes.md](incidentes.md).
+
 ## Pendências
 
-- **Voo do jetpack** usa o ápice do pulo congelado. Existe um clipe `fall` (Falling Idle) no
-  GLB, ainda não integrado — é pose de queda livre horizontal, que pode não combinar com um
-  jetpack. Precisa de decisão.
 - **`hit`** (Hit To Head) está no GLB e sem uso. Substituiria a morte instantânea por uma
   animação de batida, mas isso altera jogabilidade.
+- **`idle`** e **`hit`** estão mapeados em `Player.ts`; o `idle` cobre a tela inicial.

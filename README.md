@@ -12,11 +12,28 @@ npm run dev
 
 Abre em `http://localhost:5173`. Adicione `?debug` para o HUD com FPS, draw calls e triângulos.
 
+### Scripts
+
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | servidor de desenvolvimento |
+| `npm run build` | valida assets → checa tipos → compila |
+| `npm run preview` | serve o `dist` já compilado |
+| `npm run validate:assets` | confere a integridade dos GLB e OGG |
+| `npm run fix:glb` | conserta GLB com cabeçalho de chunk corrompido (`--dry` simula) |
+
 ## Deploy e Publicação
 
 - **URL Pública:** [https://alexandremocmg.github.io/game/](https://alexandremocmg.github.io/game/)
 - **Repositório GitHub:** [https://github.com/Alexandremocmg/game](https://github.com/Alexandremocmg/game)
-- **CI/CD:** O deploy é realizado automaticamente via **GitHub Actions** (`.github/workflows/deploy.yml`). A cada push na branch `main`, a aplicação é compilada pelo Vite e publicada no GitHub Pages.
+- **CI/CD:** deploy automático via **GitHub Actions** (`.github/workflows/deploy.yml`). A cada
+  push na `main`, a Action valida os assets, compila com o Vite e publica no GitHub Pages.
+
+O `vite.config.ts` usa `base: './'` — caminhos relativos são obrigatórios porque o Pages
+serve o jogo a partir do subdiretório `/game/`, e caminhos absolutos quebrariam.
+
+Depois de um deploy pode levar um ou dois minutos até propagar; um 404 nesse intervalo é
+normal.
 
 
 ## Como jogar
@@ -84,10 +101,27 @@ e confirmar **zero mortes** — se o bot morre, há morte injusta ou obstáculo 
 
 Orçamento de render: ≤ 80 draw calls e ≤ 60k triângulos.
 
+### Integridade dos assets
+
+`npm run validate:assets` percorre a estrutura de cada GLB (assinatura, versão, tamanho
+declarado, chunks, JSON parseável) e a assinatura dos OGG. Roda automaticamente no `build`
+e como passo próprio na Action.
+
+Ele existe por um motivo concreto: os 9 GLB já foram corrompidos por um localizar-e-substituir
+global que alcançou os binários. **O jogo não quebrou — degradou em silêncio**, caindo para a
+geometria de reserva (personagem virou cápsula, obstáculos viraram caixas), e foi ao ar assim.
+Falha silenciosa é a pior de todas; agora ela derruba o build.
+
+Ao medir a pose de um personagem animado, **não use `Box3.setFromObject`** — num `SkinnedMesh`
+ele devolve a bind pose, não a pose animada. Detalhes em
+[docs/pipeline-personagem.md](docs/pipeline-personagem.md).
+
 ## Documentação
 
 - [docs/pipeline-personagem.md](docs/pipeline-personagem.md) — como o personagem sai do
   Mixamo e chega ao jogo, e as armadilhas de `SkinnedMesh`, root motion e orientação.
+- [docs/incidentes.md](docs/incidentes.md) — falhas que já aconteceram, causa raiz e o que
+  as impede de voltar.
 - [CREDITS.md](CREDITS.md) — atribuições obrigatórias dos assets (CC-BY).
 
 ## Escopo
