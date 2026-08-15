@@ -1,0 +1,37 @@
+# A ordem importa: regras posteriores prevalecem sobre as anteriores para o
+# mesmo atributo. Por isso a regra genérica vem primeiro e as específicas
+# depois — invertido, o `text=auto` anularia o `binary` dos assets.
+
+# Padrão para código-fonte: fim de linha normalizado para LF no repositório
+* text=auto eol=lf
+
+# Assets marcados como binários explicitamente. Sem isto o git pode tratá-los
+# como texto em operações de normalização (conversão de fim de linha, merge) e
+# corromper os bytes silenciosamente. Também evita diff textual inútil.
+#
+# Contexto: os 9 GLB já foram corrompidos uma vez por um localizar-e-substituir
+# global de "BIN" -> "BLE" que alcançou os binários — a palavra aparece no
+# cabeçalho do chunk de todo GLB, e isso derrubou o carregamento de todos os
+# modelos. Marcar como binário não impede aquele acidente específico (uma busca
+# global ainda alcançaria os arquivos), mas fecha a porta para o git introduzir
+# dano por conta própria.
+
+# Modelos 3D
+*.glb  binary
+*.gltf binary
+*.fbx  binary
+*.obj  binary
+
+# Áudio
+*.ogg binary
+*.mp3 binary
+*.wav binary
+
+# Imagens
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+
+# WebAssembly
+*.wasm binary

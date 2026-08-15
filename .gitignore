@@ -9,3 +9,7 @@ dist/
 cloudflared.exe
 *.exe
 
+# Rede de segurança local do scripts/fix-glb-chunk.mjs: são as cópias
+# corrompidas, guardadas só para poder voltar atrás. Sem valor no repositório.
+assets-src/glb-antes-do-conserto/
+

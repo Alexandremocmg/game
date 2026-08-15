@@ -11,7 +11,13 @@ const MODEL_URLS: Record<ObstacleKind, string> = {
   train: 'models/train.glb',
 };
 
-const DRACO_CDN = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/gltf/';
+/**
+ * Sem a subpasta `gltf/`: ela existe dentro do pacote npm do three.js, mas não
+ * no CDN — lá os arquivos ficam na raiz da versão. Com o caminho errado o
+ * decodificador dá 404, e aí **nenhum** modelo carrega: personagem, obstáculos
+ * e power-ups caem todos para a geometria de reserva.
+ */
+const DRACO_CDN = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
 
 const draco = new DRACOLoader();
 draco.setDecoderPath(DRACO_CDN);
@@ -52,7 +58,11 @@ export async function loadPlayerModel(
     });
     onProgress?.(1.0);
     return { scene: gltf.scene, animations: gltf.animations };
-  } catch {
+  } catch (err) {
+    // Engolir o erro em silêncio já custou caro: o personagem virava cápsula
+    // sem nenhuma pista do motivo. O jogo segue jogável com a reserva, mas o
+    // motivo real precisa aparecer.
+    console.error('Falha ao carregar o modelo do personagem:', err);
     return null;
   }
 }
