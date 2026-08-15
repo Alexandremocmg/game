@@ -52,10 +52,23 @@ export class Hud {
     if (this.debugEnabled) this.debug.textContent = text;
   }
 
-  showOverlay(title: string, body: string): void {
+  showOverlay(title: string, body: string, onRevive?: () => void): void {
     this.overlayTitle.textContent = title;
     this.overlayBody.innerHTML = body;
     this.overlay.classList.remove('hidden');
+
+    if (onRevive) {
+      const btn = document.getElementById('btn-revive');
+      if (btn) {
+        const handler = (e: Event) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onRevive();
+        };
+        btn.onclick = handler;
+        btn.ontouchstart = handler;
+      }
+    }
   }
 
   hideOverlay(): void {

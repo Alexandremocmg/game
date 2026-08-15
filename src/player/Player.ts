@@ -7,7 +7,7 @@ import {
 import type { Input } from '../core/Input';
 import { makeBlobShadowTexture } from '../render/geometry';
 
-export type PlayerState = 'run' | 'jump' | 'roll' | 'fly';
+export type PlayerState = 'idle' | 'run' | 'jump' | 'roll' | 'fly' | 'hit';
 
 interface ClipeConfig {
   /** Trecho do nome do clipe no GLB. */
@@ -25,6 +25,7 @@ interface ClipeConfig {
  * das janelas — foram medidas pela pose real dos ossos, não estimadas.
  */
 const CLIPES: Record<PlayerState, ClipeConfig> = {
+  idle: { nome: 'idle' },
   run: { nome: 'run' },
   jump: { nome: 'jump', janela: [0.15, 0.95], duracaoNoJogo: JUMP_AIRTIME },
   // Começa em 22%, já com o corpo descendo: a hitbox encolhe no instante do
@@ -34,6 +35,7 @@ const CLIPES: Record<PlayerState, ClipeConfig> = {
   // Clipe próprio de queda (Falling Idle), em loop — antes o voo reaproveitava
   // o ápice do pulo congelado, uma pose estática.
   fly: { nome: 'fall' },
+  hit: { nome: 'hit', janela: [0.0, 0.85], duracaoNoJogo: 0.8 },
 };
 
 /**
@@ -425,6 +427,16 @@ export class Player {
     this.shadow.position.y = 0.02 - groupY;
     this.shadow.scale.setScalar(scale);
     (this.shadow.material as THREE.MeshBasicMaterial).opacity = scale;
+  }
+
+  setIdle(): void {
+    this.state = 'idle';
+    if (this.mixer) this.playStateAnimation('idle');
+  }
+
+  playHit(): void {
+    this.state = 'hit';
+    if (this.mixer) this.playStateAnimation('hit');
   }
 
   reset(): void {

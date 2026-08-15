@@ -22,6 +22,8 @@ import { Loop } from './Loop';
 type State = 'ready' | 'playing' | 'dead';
 
 const BEST_KEY = 'endless-runner:best';
+const TOTAL_COINS_KEY = 'endless-runner:total-coins';
+const REVIVE_COST = 20;
 /** Carência após a morte: impede que o swipe que matou já reinicie a partida. */
 const RESTART_DELAY = 0.7;
 
@@ -42,6 +44,8 @@ export class Game {
   private distance = 0;
   private speed = SPEED_BASE;
   private coins = 0;
+  private totalCoins = Number(localStorage.getItem(TOTAL_COINS_KEY) ?? 0);
+  private hasRevivedThisRun = false;
   /** Pontuação como acumulador próprio — nunca deriva de `distance`, que só
    *  dirige velocidade e desbloqueio de tier (ver extensão de power-ups no plano). */
   private scoreValue = 0;
@@ -100,6 +104,7 @@ export class Game {
 
   private showReady(): void {
     this.state = 'ready';
+    this.player.setIdle();
     this.hud.showOverlay(
       'CORRIDA SEM FIM',
       `<p>Deslize para desviar</p>
@@ -108,6 +113,7 @@ export class Game {
          <li><b>↑</b> &nbsp;pular</li>
          <li><b>↓</b> &nbsp;rolar</li>
        </ul>
+       <p style="margin-top:6px; font-size:14px; opacity:.9;">Saldo: ${this.totalCoins} moedas 🟡</p>
        <p class="cta">toque para começar</p>`,
     );
   }
@@ -120,6 +126,7 @@ export class Game {
     this.coins = 0;
     this.scoreValue = 0;
     this.deadTimer = 0;
+    this.hasRevivedThisRun = false;
     this.magnetTimer = 0;
     this.jetpackTimer = 0;
     this.multiplierTimer = 0;
@@ -128,6 +135,23 @@ export class Game {
     this.spawner.reset();
     this.input.clear();
     this.hud.hideOverlay();
+  }
+
+  private revive(): void {
+    if (this.totalCoins < REVIVE_COST || this.hasRevivedThisRun) return;
+
+    this.totalCoins -= REVIVE_COST;
+    localStorage.setItem(TOTAL_COINS_KEY, String(this.totalCoins));
+    this.hasRevivedThisRun = true;
+
+    this.state = 'playing';
+    this.deadTimer = 0;
+    this.player.reset();
+    this.player.grantInvulnerability(2.5);
+    this.spawner.clearAhead(18);
+    this.input.clear();
+    this.hud.hideOverlay();
+    this.audio.play('powerup');
   }
 
   /** Vida extra da prancha: absorve uma colisão em vez de matar. */
@@ -170,6 +194,7 @@ export class Game {
 
     this.state = 'dead';
     this.deadTimer = 0;
+    this.player.playHit();
     this.audio.play('crash');
 
     const final = Math.floor(this.score);
@@ -179,11 +204,19 @@ export class Game {
       localStorage.setItem(BEST_KEY, String(final));
     }
 
+    const canRevive = !this.hasRevivedThisRun && this.totalCoins >= REVIVE_COST;
+    const reviveBtnHtml = canRevive
+      ? `<br/><button id="btn-revive" class="overlay-btn"><span>CONTINUAR</span> (${REVIVE_COST} 🟡)</button>`
+      : '';
+
     this.hud.showOverlay(
       record ? 'NOVO RECORDE' : 'FIM DE JOGO',
       `<p class="big">${final}</p>
-       <p>recorde ${Math.floor(this.best)} &nbsp;·&nbsp; ${this.coins} moedas</p>
-       <p class="cta">toque para jogar de novo</p>`,
+       <p>recorde ${Math.floor(this.best)} &nbsp;·&nbsp; ${this.coins} moedas nesta corrida</p>
+       <p style="margin-top:4px; font-size:14px; opacity:.9;">Saldo total: ${this.totalCoins} moedas 🟡</p>
+       ${reviveBtnHtml}
+       <p class="cta" style="margin-top:12px;">toque para jogar de novo</p>`,
+      canRevive ? () => this.revive() : undefined,
     );
   }
 
@@ -376,9 +409,12 @@ export class Game {
           (y) => magnetActive || (y >= this.player.hitY0 - 0.3 && y <= yTop),
           magnetActive,
         );
-        this.coins += collected;
-        // Leve variação de tom por moeda — soa menos mecânico ao pegar várias seguidas.
-        if (collected > 0) this.audio.play('coin', { rate: 1 + Math.random() * 0.15 });
+        if (collected > 0) {
+          this.coins += collected;
+          this.totalCoins += collected;
+          localStorage.setItem(TOTAL_COINS_KEY, String(this.totalCoins));
+          this.audio.play('coin', { rate: 1 + Math.random() * 0.15 });
+        }
 
         const pickedUp = this.spawner.collectPowerUps(
           this.player.lane, -POWERUP_PICKUP_HALF_Z, POWERUP_PICKUP_HALF_Z,

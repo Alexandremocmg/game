@@ -330,6 +330,16 @@ export class Spawner {
     }
     return collected;
   }
+
+  /** Desativa obstáculos vivos que estejam num raio de `distance` metros à frente (usado no revive). */
+  clearAhead(distance: number): void {
+    for (const o of this.obstacles) {
+      if (o.alive && o.z < 0 && o.z > -distance) {
+        o.alive = false;
+        o.mesh.visible = false;
+      }
+    }
+  }
 }
 
 /**
