@@ -65,6 +65,9 @@ export class Scenery {
   private readonly carroXs = new Float32Array(CARRO_CAPACIDADE);
   private readonly carroCor = new Uint32Array(CARRO_CAPACIDADE);
   private readonly carroAtivo = new Uint8Array(CARRO_CAPACIDADE);
+  /** 0 ou 1 — qual ponta do carro aponta para frente. Sorteado uma vez por
+   *  peça, não a cada frame, senão todo carro do mesmo lado giraria igual. */
+  private readonly carroVirado = new Uint8Array(CARRO_CAPACIDADE);
 
   constructor(scene: THREE.Scene) {
     this.tema = TEMAS[0]!;
@@ -209,6 +212,7 @@ export class Scenery {
 
     this.carroAtivo[i] = 1;
     this.carroCor[i] = pick(carros.cores);
+    this.carroVirado[i] = Math.random() < 0.5 ? 0 : 1;
     const side = Math.random() < 0.5 ? -1 : 1;
     this.carroXs[i] = side * (CARRO_X_MIN + Math.random() * CARRO_X_LARGURA);
   }
@@ -247,8 +251,11 @@ export class Scenery {
     for (let i = 0; i < CARRO_CAPACIDADE; i++) {
       if (!this.carroAtivo[i]) continue;
       this.dummy.position.set(this.carroXs[i]!, 0, this.carroZs[i]!);
-      // Carro de frente para a pista: metade olha para +X, metade para -X.
-      this.dummy.rotation.set(0, this.carroXs[i]! > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+      // Paralelo ao meio-fio, como estacionamento de verdade — de frente para
+      // a pista (perpendicular) só mostra o para-choque estreito e o carro
+      // vira um bloco irreconhecível. De perfil, o degrau da cabine e as
+      // rodas aparecem e a forma lê como carro.
+      this.dummy.rotation.set(0, this.carroVirado[i]! ? Math.PI : 0, 0);
       this.dummy.scale.setScalar(1);
       this.dummy.updateMatrix();
       this.carroMesh.setMatrixAt(n, this.dummy.matrix);

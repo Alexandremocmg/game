@@ -204,11 +204,15 @@ export const TEMAS: readonly Tema[] = [
     // noite as transforma em pontos de luz.
     janelaCor: 0xffe2b0,
     janelaForca: 0.95,
-    // Emissivo azulado suave — sustenta a silhueta mesmo onde a luz da cena
-    // não chega. Medido: sem isto a pista aos pés do jogador caía a 4 de
-    // luminância (em 0–255), abaixo de qualquer leitura confiável.
-    personagemCor: 0x8fa8ff,
-    personagemForca: 0.5,
+    // Emissivo neutro e discreto — sustenta a silhueta mesmo onde a luz da
+    // cena não chega, sem tingir a roupa. A luz ambiente já deixa o torso em
+    // ~34 de luminância (0–255); a cor azulada saturada usada antes (força
+    // 0,5) dominava por cima disso e subia para 133 — quase o brilho do céu,
+    // lavando a variação de tom da jaqueta numa silhueta lavanda plana. Branco
+    // neutro a 0,03 sobe para ~59: quase o dobro do piso, sem se aproximar do
+    // céu e sem mudar a cor percebida da roupa.
+    personagemCor: 0xffffff,
+    personagemForca: 0.03,
     // Luz de lua bem mais forte que o realismo pediria — a legibilidade do
     // que se controla vem antes da atmosfera. `hemiChao` foi a primeira
     // tentativa e não fez efeito nenhum: ele ilumina superfícies voltadas
@@ -238,7 +242,10 @@ export const TEMAS: readonly Tema[] = [
     marcoCor: 0x7a5cd6,
     // Tons escuros e saturados de neon — a lataria some contra os prédios,
     // mas os para-choques e vidros ainda leem sob o bloom da rua.
-    carros: { cores: [0x1a1a24, 0x2a1830, 0x18242e, 0x241820], quantidade: 12 },
+    // A paleta original (luminância 27–34) ficava igual ou mais escura que o
+    // próprio asfalto (34) — o carro tinha a forma certa mas contraste zero,
+    // e desaparecia mesmo de perfil. Esta sobe para 42–49, moody mas visível.
+    carros: { cores: [0x2e2e3e, 0x3a2440, 0x24343f, 0x3a2530], quantidade: 12 },
   },
   {
     nome: 'deserto',
@@ -327,9 +334,12 @@ export const TEMAS: readonly Tema[] = [
     formaPesos: [1, 0, 0, 0],
     janelaCor: 0x000000,
     janelaForca: 0,
-    // O ambiente mais escuro do jogo é onde o emissivo mais precisa existir.
-    personagemCor: 0xaab6d6,
-    personagemForca: 0.5,
+    // Mesmo tratamento neutro da noite. A luz de serviço do túnel já deixa o
+    // torso em ~61 de luminância — mais alta que a da noite — então o mesmo
+    // reforço discreto (0,03) chega a ~80, guardando a mesma proporção sem
+    // repetir o exagero da versão anterior.
+    personagemCor: 0xffffff,
+    personagemForca: 0.03,
     // Não há sol dentro de um túnel, mas cortar a luz por realismo deixou o
     // personagem invisível sobre o asfalto escuro — o mesmo erro que a noite
     // já tinha ensinado. Mesma correção da noite, e pela mesma razão física:
