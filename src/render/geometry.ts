@@ -221,6 +221,39 @@ export function makeBuildingShapes(): THREE.BufferGeometry[] {
 }
 
 /**
+ * Carro parado de cenário, já em metros reais — diferente dos prédios
+ * (3 a 30 unidades, por isso normalizados a um cubo 1×1×1 e escalados por
+ * instância), o carro tem tamanho quase fixo, então a geometria nasce direto
+ * no tamanho final e a instância só reposiciona.
+ *
+ * A cor por instância de uma `InstancedMesh` **multiplica** a cor por vértice
+ * já assada na geometria — não a substitui. É o mesmo mecanismo dos prédios,
+ * mas aqui rende mais: lataria e cabine em branco (1×instância = a cor da
+ * instância aparece pura) e rodas/parachoques em cinza quase preto
+ * (1×instância continua escuro, qualquer que seja a cor sorteada) — um único
+ * material serve tanto a carroceria colorida por tema quanto os detalhes que
+ * nunca devem colorir.
+ */
+export function makeCarShape(): THREE.BufferGeometry {
+  const detalhe = 0x14161c; // quase preto: multiplicado por qualquer cor, continua escuro
+  const partes = [
+    // corpo — branco, para a cor da instância aparecer pura
+    box(1.75, 0.62, 4.1, 0, 0.62, 0, 0xffffff),
+    // cabine, recuada para a metade traseira
+    box(1.5, 0.5, 2.0, 0, 1.18, -0.35, 0xffffff),
+    box(1.8, 0.22, 0.28, 0, 0.34, 1.95, detalhe),
+    box(1.8, 0.22, 0.28, 0, 0.34, -1.95, detalhe),
+  ];
+  // quatro rodas, uma em cada canto
+  for (const x of [-0.78, 0.78]) {
+    for (const z of [-1.3, 1.3]) {
+      partes.push(box(0.4, 0.62, 0.62, x, 0.31, z, detalhe));
+    }
+  }
+  return mergeGeometries(partes, false)!;
+}
+
+/**
  * Grade de janelas para usar como `emissiveMap` dos prédios.
  *
  * É o maior salto de qualidade percebida desta fase e não custa nenhum draw

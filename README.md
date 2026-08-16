@@ -102,6 +102,17 @@ src/
   código: `Spawner` só escreve matriz para o que está dentro de uma janela de Z. Sem isso a
   troca sai pela culatra — medido, 30 de 35 obstáculos vivos estavam além de −160, fora de
   qualquer névoa.
+- **`hemiChao` não ilumina o chão.** `HemisphereLight.groundColor` afeta superfícies com a
+  normal voltada para baixo — undersides. Uma pista, normal para cima, recebe é `hemiCeu`.
+  Subir `hemiChao` por engano moveu a legibilidade da pista de 4 para 8,5 (luminância 0–255);
+  o parâmetro certo (`hemiCeu` + `solIntensidade`) moveu para 32+. Ver incidente 10.
+- **Cor por instância multiplica, não substitui.** O carro de cenário usa isso para ter um
+  material só: lataria pintada de branco na geometria (1×cor da instância = a cor aparece
+  pura) e rodas/parachoques quase pretos (1×qualquer cor continua escuro). Mesmo truque que os
+  prédios usam para o `emissiveMap` das janelas.
+- **Densidade por tema chega peça por peça, nunca de uma vez.** Os carros do túnel (0) contra
+  os da noite (12) não trocam num corte — cada vaga só decide se tem carro no instante em que
+  ela mesma recicla, como a cor e a forma dos prédios. Ver `Scenery.randomizeCarro`.
 
 ## Páginas auxiliares
 
@@ -162,7 +173,10 @@ ele devolve a bind pose, não a pose animada. Detalhes em
 Implementado: core loop, obstáculos e padrões por dificuldade, moedas com saldo persistido e
 "continuar" após a morte, power-ups (ímã, jetpack, multiplicador, prancha), pós-processamento,
 áudio, personagem animado, 4 temas de cenário (entardecer, noite, deserto e túnel) que se
-alternam conforme a distância, e um pórtico que marca a fronteira entre eles.
+alternam conforme a distância, um pórtico que marca a fronteira entre eles, cenário rico
+(prédios em 4 silhuetas, janelas acesas, céu com sol/lua/estrelas, carros parados na beira) e
+todo o conteúdo repetido — obstáculos, power-ups, moedas, prédios, carros — desenhado via
+`InstancedMesh`.
 
 Fora: loja e economia, missões diárias, personagens destraváveis, ranking online,
 empacotamento em APK.

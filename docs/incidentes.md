@@ -165,3 +165,29 @@ de 12 para 6.5 e as aletas sumiram.
 jogador vê, a varredura custa uma chamada e responde o que a dedução só aproxima — e ainda
 devolve a **margem**, que a dedução nem tenta dar. Vale o mesmo espírito do incidente 4: a
 diferença entre achar e saber é medir.
+
+---
+
+## 10. `hemiChao` não ilumina o chão
+
+**Sintoma:** jogado num celular de verdade, à noite não dava para ver pista nem personagem.
+Medido em pixel real (luminância 0–255): a pista aos pés do jogador chegava a **4**, contra
+143 no deserto.
+
+**Causa:** a primeira correção mexeu na vinheta e em `hemiChao` — o nome sugere "cor que
+ilumina o chão", e o comentário do código dizia exatamente isso. Nenhuma das duas mudou o
+pixel de forma relevante. Só depois de isolar cada variável (mutando os objetos de luz ao vivo
+e lendo o pixel de novo) apareceu a causa real: `THREE.HemisphereLight.groundColor` ilumina
+superfícies com a normal voltada **para baixo** — undersides, parte de baixo de beirais. Uma
+pista tem a normal voltada para **cima**, então ela recebe é `hemiCeu` (a cor do "céu" da luz
+hemisférica), não `hemiChao`. O nome do parâmetro enganou tanto o código quanto o comentário
+que o justificava.
+
+**Correção:** subir `hemiCeu` e a luz direcional (`solIntensidade`), não `hemiChao`. Medido:
+`hemiChao` triplicado moveu o pixel de 4 para 8,5; `hemiCeu` e `sol` corretos moveram para 32+.
+
+**Lição:** o nome de uma API pode estar certo e ainda assim enganar quem não conhece o modelo
+de iluminação por trás dele — `HemisphereLight` não é "cor de cima" e "cor de baixo" no sentido
+ingênuo, é uma interpolação pela normal da superfície. Quando um ajuste de luz não move o pixel
+que deveria mover, a resposta não é aumentar mais o mesmo parâmetro — é suspeitar que é o
+parâmetro errado, e isolar cada luz por vez até achar qual realmente responde.

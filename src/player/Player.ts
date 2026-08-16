@@ -91,18 +91,26 @@ export class Player {
   private customModel?: THREE.Group;
   /** Escala uniforme calculada uma vez (altura do modelo → PLAYER_HEIGHT) — `syncVisual` parte dela para o squash do rolamento. */
   private baseModelScale = 1;
+  /**
+   * Materiais do personagem que aceitam emissivo — cápsula de reserva e cada
+   * malha do GLB. Guardados numa lista própria para não precisar percorrer a
+   * hierarquia a cada troca de tema, que já roda por passo.
+   */
+  private readonly glowMaterials: Array<THREE.MeshLambertMaterial | THREE.MeshStandardMaterial> = [];
 
   constructor(
     scene: THREE.Scene,
     playerModel?: { scene: THREE.Group; animations: THREE.AnimationClip[] } | null,
   ) {
     const capsuleLength = PLAYER_HEIGHT - PLAYER_RADIUS * 2;
+    const bodyMaterial = new THREE.MeshLambertMaterial({ color: COLOR_PLAYER });
     this.body = new THREE.Mesh(
       new THREE.CapsuleGeometry(PLAYER_RADIUS, capsuleLength, 4, 12),
-      new THREE.MeshLambertMaterial({ color: COLOR_PLAYER }),
+      bodyMaterial,
     );
     this.body.position.y = PLAYER_HEIGHT / 2;
     this.group.add(this.body);
+    this.glowMaterials.push(bodyMaterial);
 
     if (playerModel) {
       this.setCustomModel(playerModel);
@@ -150,6 +158,21 @@ export class Player {
     // câmera. Sem isto o jogador simplesmente não aparece na maior parte do tempo.
     this.customModel.traverse((o) => { o.frustumCulled = false; });
     this.group.add(this.customModel);
+
+    // Materiais do GLB (GLTFLoader gera MeshStandardMaterial) entram na mesma
+    // lista da cápsula de reserva — os dois aceitam `emissive`, e é assim que
+    // o personagem passa a brilhar sozinho nos temas escuros, sem depender da
+    // luz da cena que a vinheta já come.
+    this.customModel.traverse((o) => {
+      const malha = o as THREE.Mesh;
+      if (!malha.isMesh) return;
+      const mats = Array.isArray(malha.material) ? malha.material : [malha.material];
+      for (const m of mats) {
+        if ((m as THREE.MeshStandardMaterial).emissive) {
+          this.glowMaterials.push(m as THREE.MeshStandardMaterial);
+        }
+      }
+    });
 
     if (playerModel.animations.length > 0) {
       // O root motion horizontal já sai no preparo do GLB (scripts de Blender):
@@ -200,6 +223,24 @@ export class Player {
 
     if (!this.actions.run && clips[0]) this.actions.run = this.mixer.clipAction(clips[0]);
     this.playStateAnimation('run');
+  }
+
+  /**
+   * Interpola o emissivo do personagem entre dois temas — mesmo padrão de
+   * `Scenery.aplicarTema`, chamado a cada passo com o `t` de
+   * `temaEmDistancia`. Existe porque medição em pixel real mostrou a pista
+   * aos pés do jogador caindo a 4 de luminância (0–255) à noite: clarear o
+   * ambiente não bastava, porque o personagem é escuro por design e a
+   * silhueta precisa existir por conta própria.
+   */
+  aplicarBrilhoDeTema(corA: number, forcaA: number, corB: number, forcaB: number, t: number): void {
+    corGlowAux.setHex(corA);
+    if (t > 0) corGlowAux.lerp(corGlowAuxB.setHex(corB), t);
+    const forca = forcaA + (forcaB - forcaA) * t;
+    for (const m of this.glowMaterials) {
+      m.emissive.copy(corGlowAux);
+      m.emissiveIntensity = forca;
+    }
   }
 
   private playStateAnimation(newState: PlayerState): void {
@@ -460,4 +501,10 @@ export class Player {
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
+
+// Rascunhos de módulo: `aplicarBrilhoDeTema` roda a cada passo durante a
+// transição, e alocar `THREE.Color` no laço geraria o lixo que o resto do
+// projeto evita (mesmo padrão de `Stage.ts` e `Scenery.ts`).
+const corGlowAux = new THREE.Color();
+const corGlowAuxB = new THREE.Color();
 

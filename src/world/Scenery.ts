@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BUILDING_COUNT, CHUNK_RECYCLE_Z, TRACK_SPAN, TRACK_WIDTH } from '../config';
-import { makeBuildingShapes, makeWindowTexture } from '../render/geometry';
+import { makeBuildingShapes, makeCarShape, makeWindowTexture } from '../render/geometry';
 import { TEMAS, type Tema } from './themes';
 
 /**
@@ -24,6 +24,17 @@ const FRACAO_NA_FAIXA_DISTANTE = 0.45;
 const FAIXA_PERTO = { xMin: TRACK_WIDTH / 2 + 3.5, xLargura: 14, escala: 1 };
 const FAIXA_LONGE = { xMin: TRACK_WIDTH / 2 + 18, xLargura: 26, escala: 1.7 };
 
+/**
+ * Carros de cenário, encostados no meio-fio — a mesma lateral já usada pelas
+ * pernas do pórtico e pelas paredes do túnel (`Track.ts`), comprovadamente
+ * inalcançável: o obstáculo mais largo do jogo chega a |x| = 3,2 e o meio-fio
+ * termina em 4,4.
+ */
+const CARRO_X_MIN = 5.0;
+const CARRO_X_LARGURA = 0.8;
+/** Maior `quantidade` entre os temas — capacidade fixa da `InstancedMesh`. */
+const CARRO_CAPACIDADE = 12;
+
 export class Scenery {
   private readonly formas: THREE.InstancedMesh[];
   private readonly material: THREE.MeshLambertMaterial;
@@ -42,6 +53,18 @@ export class Scenery {
   private readonly corAux = new THREE.Color();
   private readonly contagem: number[];
   private tema: Tema;
+
+  // --- carros: mesmo esquema de reciclagem dos prédios, com um detalhe a
+  // mais — cada slot carrega se está "ativo" nesta passada, decidido no
+  // instante em que recicla. É o que faz a densidade mudar por tema (12 na
+  // noite, 5 no deserto, nenhum no túnel) chegando peça por peça, como a cor
+  // e a forma dos prédios — nunca a frota inteira aparecendo ou sumindo de
+  // uma vez.
+  private readonly carroMesh: THREE.InstancedMesh;
+  private readonly carroZs = new Float32Array(CARRO_CAPACIDADE);
+  private readonly carroXs = new Float32Array(CARRO_CAPACIDADE);
+  private readonly carroCor = new Uint32Array(CARRO_CAPACIDADE);
+  private readonly carroAtivo = new Uint8Array(CARRO_CAPACIDADE);
 
   constructor(scene: THREE.Scene) {
     this.tema = TEMAS[0]!;
@@ -71,12 +94,26 @@ export class Scenery {
       // Na primeira distribuição espalhamos pelo trecho inteiro.
       this.zs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
     }
+
+    this.carroMesh = new THREE.InstancedMesh(
+      makeCarShape(),
+      new THREE.MeshLambertMaterial({ vertexColors: true }),
+      CARRO_CAPACIDADE,
+    );
+    this.carroMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.carroMesh.frustumCulled = false;
+    scene.add(this.carroMesh);
+    for (let i = 0; i < CARRO_CAPACIDADE; i++) {
+      this.randomizeCarro(i);
+      this.carroZs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
+    }
+
     this.writeMatrices();
   }
 
   /** Quantos draw calls o cenário custa — usado na conferência de orçamento. */
   get drawCalls(): number {
-    return this.formas.length;
+    return this.formas.length + 1;
   }
 
   /**
@@ -108,6 +145,10 @@ export class Scenery {
       this.randomize(i);
       this.zs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
     }
+    for (let i = 0; i < CARRO_CAPACIDADE; i++) {
+      this.randomizeCarro(i);
+      this.carroZs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
+    }
     this.writeMatrices();
   }
 
@@ -119,6 +160,14 @@ export class Scenery {
         this.randomize(i);
       }
       this.zs[i] = z;
+    }
+    for (let i = 0; i < CARRO_CAPACIDADE; i++) {
+      let z = this.carroZs[i]! + dz;
+      if (z > CHUNK_RECYCLE_Z) {
+        z -= TRACK_SPAN;
+        this.randomizeCarro(i);
+      }
+      this.carroZs[i] = z;
     }
     this.writeMatrices();
   }
@@ -133,12 +182,35 @@ export class Scenery {
     const [largMin, largMax] = t.predioLargura;
     const [altMin, altMax] = t.predioAltura;
 
-    this.forma[i] = sorteiaForma(t.formaPesos);
-    this.xs[i] = side * (faixa.xMin + Math.random() * faixa.xLargura);
-    this.sx[i] = (largMin + Math.random() * (largMax - largMin)) * faixa.escala;
+    const larguraX = (largMin + Math.random() * (largMax - largMin)) * faixa.escala;
+    this.sx[i] = larguraX;
     this.sz[i] = (largMin + Math.random() * (largMax - largMin)) * faixa.escala;
     this.sy[i] = (altMin + Math.random() * (altMax - altMin)) * faixa.escala;
+    this.forma[i] = sorteiaForma(t.formaPesos);
     this.cor[i] = pick(t.predios);
+
+    // A largura entra na posição: sem isto, uma peça larga sorteada perto da
+    // borda interna da faixa invade a pista. `faixa.xMin` já é a distância da
+    // borda ao meio-fio, então somar metade da largura empurra a peça para
+    // fora dessa margem — o piso que faltava, não um teto novo.
+    this.xs[i] = side * (faixa.xMin + larguraX / 2 + Math.random() * faixa.xLargura);
+  }
+
+  /**
+   * Decide se este slot tem carro nesta passada e, se tiver, sorteia cor e
+   * lado. A "quantidade" do tema não corta a frota de uma vez — cada slot só
+   * reavalia sua própria ativação quando **ele mesmo** recicla, então a
+   * mudança de densidade entre temas chega peça por peça, como tudo o mais
+   * no cenário.
+   */
+  private randomizeCarro(i: number): void {
+    const carros = this.tema.carros;
+    if (!carros || i >= carros.quantidade) { this.carroAtivo[i] = 0; return; }
+
+    this.carroAtivo[i] = 1;
+    this.carroCor[i] = pick(carros.cores);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    this.carroXs[i] = side * (CARRO_X_MIN + Math.random() * CARRO_X_LARGURA);
   }
 
   /**
@@ -147,6 +219,10 @@ export class Scenery {
    */
   private writeMatrices(): void {
     for (let f = 0; f < this.contagem.length; f++) this.contagem[f] = 0;
+    // `dummy` é compartilhado com o laço dos carros, que gira cada instância
+    // — sem isto a rotação de um carro vazaria para os prédios do frame
+    // seguinte, já que os prédios nunca tocam `rotation`.
+    this.dummy.rotation.set(0, 0, 0);
 
     for (let i = 0; i < BUILDING_COUNT; i++) {
       const malha = this.formas[this.forma[i]!]!;
@@ -164,6 +240,24 @@ export class Scenery {
       malha.instanceMatrix.needsUpdate = true;
       if (malha.instanceColor) malha.instanceColor.needsUpdate = true;
     }
+
+    // Carros: só as vagas ativas entram, compactadas no início do buffer —
+    // mesmo mecanismo que o Spawner usa para os obstáculos vivos.
+    let n = 0;
+    for (let i = 0; i < CARRO_CAPACIDADE; i++) {
+      if (!this.carroAtivo[i]) continue;
+      this.dummy.position.set(this.carroXs[i]!, 0, this.carroZs[i]!);
+      // Carro de frente para a pista: metade olha para +X, metade para -X.
+      this.dummy.rotation.set(0, this.carroXs[i]! > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+      this.dummy.scale.setScalar(1);
+      this.dummy.updateMatrix();
+      this.carroMesh.setMatrixAt(n, this.dummy.matrix);
+      this.carroMesh.setColorAt(n, this.corAux.setHex(this.carroCor[i]!));
+      n++;
+    }
+    this.carroMesh.count = n;
+    this.carroMesh.instanceMatrix.needsUpdate = true;
+    if (this.carroMesh.instanceColor) this.carroMesh.instanceColor.needsUpdate = true;
   }
 }
 

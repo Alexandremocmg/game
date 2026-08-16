@@ -176,6 +176,11 @@ export class Game {
     // prédios — se esperasse a reciclagem, o skyline inteiro acenderia de uma
     // vez. Interpolado junto com a luz da cena.
     this.scenery.aplicarTema(atual, proximo, p.t);
+    // Mesma razão: o emissivo do personagem vive num material próprio, e
+    // precisa acompanhar a transição para não acender ou apagar de golpe.
+    this.player.aplicarBrilhoDeTema(
+      atual.personagemCor, atual.personagemForca, proximo.personagemCor, proximo.personagemForca, p.t,
+    );
   }
 
   private revive(): void {

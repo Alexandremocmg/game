@@ -57,6 +57,28 @@ export interface Tema {
   janelaCor: number;
   janelaForca: number;
 
+  /**
+   * Emissivo aplicado ao personagem — a coisa que o jogador controla não pode
+   * depender da luz do ambiente para existir. Medido em pixel real: a pista
+   * sob o personagem, à noite, chegava a 4 de luminância (0–255) — pouco a
+   * ver com a vinheta (removê-la por completo não mudava esse pixel) e tudo
+   * a ver com a luz da cena, corrigida junto (ver `hemiCeu`/`solIntensidade`
+   * abaixo). `forca` 0 nos temas claros — de dia o personagem já se distingue
+   * sem ajuda.
+   */
+  personagemCor: number;
+  personagemForca: number;
+
+  /**
+   * Carros de cenário, parados na beira da pista. Ausente = nenhum — o caso
+   * do túnel, onde um carro parado num corredor de pista única não lê.
+   */
+  carros?: {
+    cores: readonly number[];
+    /** Instâncias em cena ao mesmo tempo (a faixa toda recicla como o resto do cenário). */
+    quantidade: number;
+  };
+
   // --- luz
   sol: number;
   solIntensidade: number;
@@ -133,6 +155,9 @@ export const TEMAS: readonly Tema[] = [
     // Fim de tarde: parte das janelas já acesa, mas o céu ainda ganha delas.
     janelaCor: 0xffd9a0,
     janelaForca: 0.14,
+    // De dia o personagem já se distingue do asfalto sem ajuda.
+    personagemCor: 0x000000,
+    personagemForca: 0,
     sol: 0xfff1de,
     solIntensidade: 2.1,
     hemiCeu: 0x2f6ea8,
@@ -145,6 +170,7 @@ export const TEMAS: readonly Tema[] = [
     brilho: 0.015,
     contraste: 0.06,
     marcoCor: 0xe0a15f,
+    carros: { cores: [0x8a2f2f, 0x3a4a6b, 0xc9c4b8, 0x2f2f33, 0x6b7280], quantidade: 10 },
   },
   {
     nome: 'noite',
@@ -178,18 +204,31 @@ export const TEMAS: readonly Tema[] = [
     // noite as transforma em pontos de luz.
     janelaCor: 0xffe2b0,
     janelaForca: 0.95,
-    // Luz de lua fria, forte o bastante para os acentos neon da jaqueta
-    // aparecerem e o personagem não virar uma mancha preta.
+    // Emissivo azulado suave — sustenta a silhueta mesmo onde a luz da cena
+    // não chega. Medido: sem isto a pista aos pés do jogador caía a 4 de
+    // luminância (em 0–255), abaixo de qualquer leitura confiável.
+    personagemCor: 0x8fa8ff,
+    personagemForca: 0.5,
+    // Luz de lua bem mais forte que o realismo pediria — a legibilidade do
+    // que se controla vem antes da atmosfera. `hemiChao` foi a primeira
+    // tentativa e não fez efeito nenhum: ele ilumina superfícies voltadas
+    // para BAIXO, e uma pista tem a normal voltada para cima — quem ilumina
+    // o chão é `hemiCeu`. Medido por pixel: subir `hemiChao` de 0x14161f para
+    // o triplo moveu a pista de 4 para 8,5 de luminância; subir `hemiCeu` e
+    // `solIntensidade` (este bloco) moveu para 32.
     sol: 0x9fb4ff,
-    solIntensidade: 1.5,
-    hemiCeu: 0x3a2a70,
+    solIntensidade: 4.0,
+    hemiCeu: 0x5a6ab0,
     hemiChao: 0x14161f,
-    hemiIntensidade: 1.0,
+    hemiIntensidade: 3.0,
     // Limiar baixo e intensidade alta: é o que faz faixas, moedas e acentos
     // neon brilharem de verdade no escuro — o efeito que define a noite.
     bloomIntensidade: 1.15,
     bloomLimiar: 0.5,
-    vinheta: 0.62,
+    // De 0.62: ainda escurece os cantos da tela (confirmado por pixel), mas
+    // não era ela quem escurecia o centro-baixo — essa parte era a luz.
+    // Mantida mais baixa mesmo assim, por sobra de cautela nos cantos.
+    vinheta: 0.4,
     // Levemente lavado: à noite o olho perde saturação, e o contraste faz o
     // que sobra de cor (o neon) saltar mais.
     saturacao: -0.08,
@@ -197,6 +236,9 @@ export const TEMAS: readonly Tema[] = [
     contraste: 0.12,
     // Violeta neon: com o limiar de bloom baixo da noite, o pórtico acende.
     marcoCor: 0x7a5cd6,
+    // Tons escuros e saturados de neon — a lataria some contra os prédios,
+    // mas os para-choques e vidros ainda leem sob o bloom da rua.
+    carros: { cores: [0x1a1a24, 0x2a1830, 0x18242e, 0x241820], quantidade: 12 },
   },
   {
     nome: 'deserto',
@@ -226,6 +268,8 @@ export const TEMAS: readonly Tema[] = [
     formaPesos: [1, 0.12, 0, 0.25],
     janelaCor: 0x000000,
     janelaForca: 0,
+    personagemCor: 0x000000,
+    personagemForca: 0,
     sol: 0xffe3b8,
     solIntensidade: 2.4,
     hemiCeu: 0x9fb6e0,
@@ -240,6 +284,8 @@ export const TEMAS: readonly Tema[] = [
     brilho: 0.01,
     contraste: 0.04,
     marcoCor: 0xd9c9a3,
+    // Esparsos e empoeirados — carros abandonados, não tráfego de cidade.
+    carros: { cores: [0xb08a5a, 0x8a7050, 0xc4a878, 0x9a8060], quantidade: 5 },
   },
   {
     nome: 'tunel',
@@ -281,23 +327,27 @@ export const TEMAS: readonly Tema[] = [
     formaPesos: [1, 0, 0, 0],
     janelaCor: 0x000000,
     janelaForca: 0,
+    // O ambiente mais escuro do jogo é onde o emissivo mais precisa existir.
+    personagemCor: 0xaab6d6,
+    personagemForca: 0.5,
     // Não há sol dentro de um túnel, mas cortar a luz por realismo deixou o
     // personagem invisível sobre o asfalto escuro — o mesmo erro que a noite
-    // já tinha ensinado. Estes valores são a luz de serviço do corredor:
-    // suficiente para ler a silhueta do que se controla, que vem antes da
-    // atmosfera.
+    // já tinha ensinado. Mesma correção da noite, e pela mesma razão física:
+    // `hemiChao` ilumina superfície voltada para baixo, não a pista — quem
+    // ilumina o chão é `hemiCeu`. Medido por pixel: 35,6 de luminância aos
+    // pés, contra os 21 de antes.
     sol: 0xb8c8ee,
-    solIntensidade: 1.25,
-    hemiCeu: 0x3d4460,
+    solIntensidade: 1.9,
+    hemiCeu: 0x5a68a0,
     hemiChao: 0x1c1f29,
-    hemiIntensidade: 1.2,
+    hemiIntensidade: 2.5,
     // Limiar ainda mais baixo que o da noite: as luminárias são o único ponto
     // de luz do ambiente e precisam mesmo acender.
     bloomIntensidade: 1.3,
     bloomLimiar: 0.45,
     // A vinheta mais fechada do jogo — é o que vende o aperto do corredor.
     // Não passa disto: mais que isso come as pistas laterais.
-    vinheta: 0.6,
+    vinheta: 0.46,
     saturacao: -0.12,
     brilho: 0.02,
     contraste: 0.12,
