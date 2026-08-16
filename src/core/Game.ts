@@ -172,6 +172,10 @@ export class Game {
 
     this.stage.aplicarTema(atual, proximo, p.t);
     this.post.aplicarTema(atual, proximo, p.t);
+    // O brilho das janelas vive no material, que é um só para todos os
+    // prédios — se esperasse a reciclagem, o skyline inteiro acenderia de uma
+    // vez. Interpolado junto com a luz da cena.
+    this.scenery.aplicarTema(atual, proximo, p.t);
   }
 
   private revive(): void {

@@ -79,7 +79,13 @@ export const SHAKE_DECAY = 0.6;
 /** Cor da cápsula de reserva, usada quando o modelo do personagem não carrega. */
 export const COLOR_PLAYER = 0xff7a4d;
 
-export const BUILDING_COUNT = 64;
+/**
+ * Peças de cenário lateral. Subiu de 64 para 96 quando o cenário passou a ter
+ * duas faixas de profundidade: a de trás precisa de população própria, senão
+ * a da frente rareia para pagá-la. Não custa draw call — são as mesmas 4
+ * `InstancedMesh`, só com mais instâncias.
+ */
+export const BUILDING_COUNT = 96;
 
 // ---------------------------------------------------------------- temas
 // As paletas vivem em `world/themes.ts`; aqui fica só a cadência da troca.

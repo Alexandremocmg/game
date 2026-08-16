@@ -10,12 +10,22 @@
  * aparece uma parede de cor no fim da pista em vez de um horizonte.
  */
 
+import type { CeuDetalhe } from '../render/geometry';
+
 export interface Tema {
   nome: string;
 
   // --- céu e névoa
   ceuTopo: number;
   ceuHorizonte: number;
+  /**
+   * Sol, lua e estrelas. Ausente = céu só de degradê, que é o caso do túnel.
+   *
+   * O `nome` repetido aqui dentro não é descuido: é a chave do cache da camada
+   * pré-renderizada, e tê-lo no próprio objeto evita montar um literal novo a
+   * cada frame de transição.
+   */
+  ceuDetalhe?: CeuDetalhe;
   fog: number;
   fogNear: number;
   fogFar: number;
@@ -32,6 +42,20 @@ export interface Tema {
    *  "torres altas e estreitas" de "formações baixas e largas". */
   predioLargura: readonly [number, number];
   predioAltura: readonly [number, number];
+  /**
+   * Pesos de sorteio das 4 silhuetas, na ordem `makeBuildingShapes`:
+   * bloco simples, recuo no topo, torre com antena, platibanda.
+   *
+   * É o que separa um skyline urbano de um paredão rochoso usando as mesmas
+   * quatro geometrias — peso 0 simplesmente nunca sorteia aquela forma.
+   */
+  formaPesos: readonly number[];
+  /**
+   * Janelas acesas. `janelaForca` 0 apaga tudo — é o caso do deserto e do
+   * túnel, onde as peças são rocha e concreto, não prédio.
+   */
+  janelaCor: number;
+  janelaForca: number;
 
   // --- luz
   sol: number;
@@ -86,6 +110,15 @@ export const TEMAS: readonly Tema[] = [
     nome: 'entardecer',
     ceuTopo: 0x2f6ea8,
     ceuHorizonte: 0xf0b782,
+    // Sol baixo com halo largo — é o que dá nome ao ambiente.
+    ceuDetalhe: {
+      nome: 'entardecer',
+      // Raio em pixels da textura de 512, que cobre 360°: cada pixel vale
+      // 0,7° de arco. 11 px ≈ 15° de diâmetro — sol estilizado de fim de
+      // tarde, grande de propósito, mas longe dos 47° que o primeiro palpite
+      // produziu.
+      astro: { azimute: 0, elevacao: 7, raio: 11, cor: 0xffe6c0, halo: 3, haloCor: 0xff9d5c },
+    },
     fog: 0xe3b189,
     fogNear: 45,
     fogFar: 140,
@@ -96,6 +129,10 @@ export const TEMAS: readonly Tema[] = [
     predios: [0x6b7a8f, 0x8a94a6, 0x55606f, 0x7d8598],
     predioLargura: [3, 7.5],
     predioAltura: [5, 29],
+    formaPesos: [1, 0.8, 0.5, 0.7],
+    // Fim de tarde: parte das janelas já acesa, mas o céu ainda ganha delas.
+    janelaCor: 0xffd9a0,
+    janelaForca: 0.14,
     sol: 0xfff1de,
     solIntensidade: 2.1,
     hemiCeu: 0x2f6ea8,
@@ -113,6 +150,13 @@ export const TEMAS: readonly Tema[] = [
     nome: 'noite',
     ceuTopo: 0x0a0a18,
     ceuHorizonte: 0x3b2358,
+    ceuDetalhe: {
+      nome: 'noite',
+      // Densidade alta porque a fatia de céu que o jogador vê entre os prédios
+      // é estreita: espalhadas pela esfera inteira, 300 estrelas somem.
+      estrelas: 900,
+      astro: { azimute: 0.022, elevacao: 15, raio: 6, cor: 0xf4f6ff, halo: 2.6, haloCor: 0x9fb4ff },
+    },
     fog: 0x352050,
     fogNear: 35,
     fogFar: 125,
@@ -128,6 +172,12 @@ export const TEMAS: readonly Tema[] = [
     predios: [0x141a2c, 0x1d2440, 0x101423, 0x25305a],
     predioLargura: [3, 7],
     predioAltura: [8, 34],
+    formaPesos: [1, 0.85, 0.7, 0.6],
+    // O momento em que as janelas mais importam: contra o prédio quase preto,
+    // são elas que dão escala e vida ao skyline, e o bloom de limiar baixo da
+    // noite as transforma em pontos de luz.
+    janelaCor: 0xffe2b0,
+    janelaForca: 0.95,
     // Luz de lua fria, forte o bastante para os acentos neon da jaqueta
     // aparecerem e o personagem não virar uma mancha preta.
     sol: 0x9fb4ff,
@@ -152,6 +202,14 @@ export const TEMAS: readonly Tema[] = [
     nome: 'deserto',
     ceuTopo: 0x6a86c4,
     ceuHorizonte: 0xf6c48a,
+    // Sol pequeno e claro, mais alto que o do entardecer — mas dentro da faixa
+    // que a câmera enxerga, senão não existe.
+    ceuDetalhe: {
+      nome: 'deserto',
+      // Contra um céu claro, disco branco simplesmente some. O que faz o sol
+      // do deserto existir é o halo quente e saturado, não o tamanho.
+      astro: { azimute: -0.045, elevacao: 17, raio: 9, cor: 0xfffdf4, halo: 3.6, haloCor: 0xff9d3c },
+    },
     fog: 0xf0bd8a,
     fogNear: 55,
     fogFar: 150,
@@ -163,6 +221,11 @@ export const TEMAS: readonly Tema[] = [
     // Baixas e largas: viram formações rochosas, não prédios.
     predioLargura: [5, 13],
     predioAltura: [2, 9],
+    // Quase só blocos, com alguma platibanda para dar patamar de mesa. Torre
+    // com antena no deserto denunciaria na hora que é o mesmo cenário pintado.
+    formaPesos: [1, 0.12, 0, 0.25],
+    janelaCor: 0x000000,
+    janelaForca: 0,
     sol: 0xffe3b8,
     solIntensidade: 2.4,
     hemiCeu: 0x9fb6e0,
@@ -214,6 +277,10 @@ export const TEMAS: readonly Tema[] = [
     // Baixos de propósito: é o que garante que a parede os esconda. Um prédio
     // alto apareceria por cima do teto no canto da tela.
     predioAltura: [0.5, 2.5],
+    // Ficam atrás da parede e nunca aparecem — a forma mais barata basta.
+    formaPesos: [1, 0, 0, 0],
+    janelaCor: 0x000000,
+    janelaForca: 0,
     // Não há sol dentro de um túnel, mas cortar a luz por realismo deixou o
     // personagem invisível sobre o asfalto escuro — o mesmo erro que a noite
     // já tinha ensinado. Estes valores são a luz de serviço do corredor:

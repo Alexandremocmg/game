@@ -77,9 +77,10 @@ export class Stage {
       this.ceu.redesenhar(
         misturarHex(a.ceuTopo, b.ceuTopo, t),
         misturarHex(a.ceuHorizonte, b.ceuHorizonte, t),
+        a.ceuDetalhe, b.ceuDetalhe, t,
       );
     } else if (this.temaAplicado !== a) {
-      this.ceu.redesenhar(a.ceuTopo, a.ceuHorizonte);
+      this.ceu.redesenhar(a.ceuTopo, a.ceuHorizonte, a.ceuDetalhe);
     }
     this.temaAplicado = misturando ? null : a;
 

@@ -3,6 +3,7 @@ import {
   CHUNK_RECYCLE_Z, LANE_X,
   POWERUP_FLOAT_Y, POWERUP_SPAWN_DISTANCE_MAX, POWERUP_SPAWN_DISTANCE_MIN,
 } from '../config';
+import { ModeloInstanciado } from '../render/instancing';
 import { OBSTACLE_SPECS, type ObstacleKind } from './obstacleSpecs';
 import { pickPattern, type Pattern } from './patterns';
 import { POWER_UP_KINDS, POWER_UP_SPECS, type PowerUpKind } from './powerUpSpecs';
@@ -11,7 +12,6 @@ interface ActiveObstacle {
   kind: ObstacleKind;
   lane: number;
   z: number;
-  mesh: THREE.Object3D;
   alive: boolean;
   /** Já disparou o tremor de câmera de "quase-acerto" desde que nasceu? */
   nearMissDone: boolean;
@@ -47,9 +47,32 @@ interface ActivePowerUp {
   kind: PowerUpKind;
   lane: number;
   z: number;
-  mesh: THREE.Object3D;
+  /** Giro acumulado — só cosmético, mas precisa viver na vaga agora que a
+   *  peça não tem mais `Object3D` próprio para guardá-lo. */
+  rot: number;
   alive: boolean;
 }
+
+/**
+ * Janela de Z que vale a pena desenhar.
+ *
+ * Com malhas individuais, o frustum culling do Three.js fazia isto sozinho.
+ * Uma `InstancedMesh` é uma malha só do ponto de vista do culling, e como ela
+ * precisa de `frustumCulled = false` (as instâncias se movem todo frame), o
+ * descarte passa a ser responsabilidade nossa: vagas fora desta janela
+ * simplesmente não entram na matriz.
+ *
+ * Sem isto a troca sairia pela culatra — medido, 30 de 35 obstáculos vivos
+ * estavam além de −160, e desenhá-los levou a cena de 13,6k para 30,6k
+ * triângulos.
+ *
+ * `ATRAS`: a câmera fica em z = 8,5 e o obstáculo mais fundo é o trem
+ * (`halfDepth` 7), então 20 cobre com folga o que ainda aparece de raspão.
+ * `FRENTE`: o maior `fogFar` do jogo é 150 (deserto); além disso a névoa já
+ * cobre tudo por completo.
+ */
+const RENDER_Z_ATRAS = 20;
+const RENDER_Z_FRENTE = -160;
 
 /** Poucas instâncias por tipo bastam — é raro ter mais de um pickup do mesmo tipo vivo ao mesmo tempo. */
 const POWERUP_CAPACITY_PER_KIND = 2;
@@ -91,6 +114,16 @@ export class Spawner {
   private readonly coinDummy = new THREE.Object3D();
   private readonly powerUps: ActivePowerUp[] = [];
 
+  /** Um modelo instanciado por tipo — é o que desenha o pool inteiro. */
+  private readonly obstacleModels = {} as Record<ObstacleKind, ModeloInstanciado>;
+  private readonly powerUpModels = {} as Record<PowerUpKind, ModeloInstanciado>;
+  /** Lista fixa: `Object.keys` por frame alocaria, contra a regra da casa. */
+  private readonly obstacleKinds: ObstacleKind[];
+  /** Contador de instâncias já escritas neste passo, por tipo. */
+  private readonly obstacleCount = {} as Record<ObstacleKind, number>;
+  private readonly powerUpCount = {} as Record<PowerUpKind, number>;
+  private readonly dummy = new THREE.Object3D();
+
   private aheadBuffer = 0;
   private generatedLength = 0;
   private distanceAtSpawn = 0;
@@ -107,19 +140,25 @@ export class Spawner {
     this.nextPowerUpDistance = POWERUP_SPAWN_DISTANCE_MIN
       + this.rand() * (POWERUP_SPAWN_DISTANCE_MAX - POWERUP_SPAWN_DISTANCE_MIN);
 
-    for (const kind of Object.keys(OBSTACLE_SPECS) as ObstacleKind[]) {
+    this.obstacleKinds = Object.keys(OBSTACLE_SPECS) as ObstacleKind[];
+    for (const kind of this.obstacleKinds) {
       const spec = OBSTACLE_SPECS[kind];
       const template = models[kind];
-      // template ausente = fallback para a caixa procedural (ex.: modelos
-      // ainda não carregados, ou build local sem os assets do Sketchfab).
-      const geometry = template ? null : spec.build();
-      const material = geometry ? new THREE.MeshLambertMaterial({ vertexColors: true }) : null;
+      // `buildFromTemplate` continua sendo a fonte da verdade sobre como o
+      // obstáculo é montado — os dois cones do `low`, o `scaleY`/`offsetY` do
+      // `gate`. A diferença é que agora ele roda **uma vez** e o arranjo vira
+      // geometria instanciada, em vez de ser clonado por vaga do pool.
+      //
+      // Template ausente = fallback para a caixa procedural (build local sem
+      // os assets do Sketchfab).
+      this.obstacleModels[kind] = template
+        ? ModeloInstanciado.deObject3D(scene, buildFromTemplate(kind, template), spec.capacity)
+        : ModeloInstanciado.deGeometria(
+          scene, spec.build(), new THREE.MeshLambertMaterial({ vertexColors: true }), spec.capacity,
+        );
 
       for (let i = 0; i < spec.capacity; i++) {
-        const mesh = template ? buildFromTemplate(kind, template) : new THREE.Mesh(geometry!, material!);
-        mesh.visible = false;
-        scene.add(mesh);
-        this.obstacles.push({ kind, lane: 0, z: 0, mesh, alive: false, nearMissDone: false });
+        this.obstacles.push({ kind, lane: 0, z: 0, alive: false, nearMissDone: false });
       }
     }
 
@@ -142,18 +181,21 @@ export class Spawner {
 
     for (const kind of POWER_UP_KINDS) {
       const template = powerUpModels[kind];
-      for (let i = 0; i < POWERUP_CAPACITY_PER_KIND; i++) {
-        // Fallback visual (modelo ainda não carregado): esfera colorida com
-        // a mesma cor/emissive do spec — mesmo padrão de fallback dos obstáculos.
-        const mesh = template ? template.clone(true) : new THREE.Mesh(
+      // Fallback visual (modelo ainda não carregado): esfera colorida com
+      // a mesma cor/emissive do spec — mesmo padrão de fallback dos obstáculos.
+      this.powerUpModels[kind] = template
+        ? ModeloInstanciado.deObject3D(scene, template, POWERUP_CAPACITY_PER_KIND)
+        : ModeloInstanciado.deGeometria(
+          scene,
           new THREE.SphereGeometry(0.3, 12, 8),
           new THREE.MeshStandardMaterial({
             color: POWER_UP_SPECS[kind].color, emissive: POWER_UP_SPECS[kind].color, emissiveIntensity: 0.5,
           }),
+          POWERUP_CAPACITY_PER_KIND,
         );
-        mesh.visible = false;
-        scene.add(mesh);
-        this.powerUps.push({ kind, lane: 0, z: 0, mesh, alive: false });
+
+      for (let i = 0; i < POWERUP_CAPACITY_PER_KIND; i++) {
+        this.powerUps.push({ kind, lane: 0, z: 0, rot: 0, alive: false });
       }
     }
   }
@@ -165,10 +207,14 @@ export class Spawner {
     this.generatedLength = 0;
     this.nextPowerUpDistance = POWERUP_SPAWN_DISTANCE_MIN
       + this.rand() * (POWERUP_SPAWN_DISTANCE_MAX - POWERUP_SPAWN_DISTANCE_MIN);
-    for (const o of this.obstacles) { o.alive = false; o.mesh.visible = false; }
+    for (const o of this.obstacles) o.alive = false;
     for (const c of this.coins) c.alive = false;
-    for (const p of this.powerUps) { p.alive = false; p.mesh.visible = false; }
+    for (const p of this.powerUps) { p.alive = false; p.rot = 0; }
     this.coinMesh.count = 0;
+    // Zerar a contagem é o que tira as peças da tela agora que não há mais
+    // `visible` por vaga.
+    this.writeObstacleMatrices();
+    this.writePowerUpMatrices();
   }
 
   /** @param dz avanço deste passo · @param distance distância total percorrida, para o sorteio de dificuldade */
@@ -178,9 +224,9 @@ export class Spawner {
     for (const o of this.obstacles) {
       if (!o.alive) continue;
       o.z += dz;
-      if (o.z > CHUNK_RECYCLE_Z) { o.alive = false; o.mesh.visible = false; continue; }
-      o.mesh.position.set(LANE_X[o.lane]!, 0, o.z);
+      if (o.z > CHUNK_RECYCLE_Z) o.alive = false;
     }
+    this.writeObstacleMatrices();
 
     let coinTouched = false;
     for (const c of this.coins) {
@@ -194,10 +240,10 @@ export class Spawner {
     for (const p of this.powerUps) {
       if (!p.alive) continue;
       p.z += dz;
-      if (p.z > CHUNK_RECYCLE_Z) { p.alive = false; p.mesh.visible = false; continue; }
-      p.mesh.position.set(LANE_X[p.lane]!, POWERUP_FLOAT_Y, p.z);
-      p.mesh.rotation.y += 0.03; // giro lento — só cosmético, chama atenção sem parecer moeda
+      if (p.z > CHUNK_RECYCLE_Z) { p.alive = false; continue; }
+      p.rot += 0.03; // giro lento — só cosmético, chama atenção sem parecer moeda
     }
+    this.writePowerUpMatrices();
 
     // O jogador consome buffer a cada frame; repõe gerando mais padrões
     // sempre que a reserva à frente cair abaixo do mínimo.
@@ -230,8 +276,7 @@ export class Spawner {
     slot.alive = true;
     slot.lane = lane;
     slot.z = z;
-    slot.mesh.visible = true;
-    slot.mesh.position.set(LANE_X[lane]!, POWERUP_FLOAT_Y, z);
+    slot.rot = 0;
   }
 
   private spawnPattern(): void {
@@ -245,8 +290,6 @@ export class Spawner {
       slot.nearMissDone = false;
       slot.lane = p.lane;
       slot.z = -(base + p.z);
-      slot.mesh.visible = true;
-      slot.mesh.position.set(LANE_X[p.lane]!, 0, slot.z);
     }
 
     for (const run of pattern.coins) {
@@ -279,6 +322,49 @@ export class Spawner {
     }
     this.coinMesh.count = n;
     this.coinMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * Empacota as vagas vivas de cada tipo em instâncias contíguas.
+   *
+   * As vagas mortas simplesmente não entram, e `setCount` corta o resto — é o
+   * que substituiu o antigo `mesh.visible` por vaga. Percorrer o pool por tipo
+   * mantém as instâncias de um mesmo tipo juntas, que é o que a `InstancedMesh`
+   * exige.
+   */
+  private writeObstacleMatrices(): void {
+    for (const kind of this.obstacleKinds) this.obstacleCount[kind] = 0;
+
+    // Uma passada só pelo pool, com um contador por tipo. A versão ingênua
+    // varria o pool inteiro uma vez para cada tipo — quatro vezes o trabalho,
+    // o bastante para a bateria do bot estourar o tempo.
+    for (const o of this.obstacles) {
+      if (!o.alive) continue;
+      if (o.z > RENDER_Z_ATRAS || o.z < RENDER_Z_FRENTE) continue;
+      this.dummy.position.set(LANE_X[o.lane]!, 0, o.z);
+      this.dummy.updateMatrix();
+      this.obstacleModels[o.kind].setMatrixAt(this.obstacleCount[o.kind]++, this.dummy.matrix);
+    }
+
+    for (const kind of this.obstacleKinds) {
+      this.obstacleModels[kind].setCount(this.obstacleCount[kind]);
+    }
+  }
+
+  private writePowerUpMatrices(): void {
+    for (const kind of POWER_UP_KINDS) this.powerUpCount[kind] = 0;
+
+    for (const p of this.powerUps) {
+      if (!p.alive) continue;
+      if (p.z > RENDER_Z_ATRAS || p.z < RENDER_Z_FRENTE) continue;
+      this.dummy.position.set(LANE_X[p.lane]!, POWERUP_FLOAT_Y, p.z);
+      this.dummy.rotation.y = p.rot;
+      this.dummy.updateMatrix();
+      this.powerUpModels[p.kind].setMatrixAt(this.powerUpCount[p.kind]++, this.dummy.matrix);
+    }
+    this.dummy.rotation.y = 0; // o dummy é compartilhado com os obstáculos
+
+    for (const kind of POWER_UP_KINDS) this.powerUpModels[kind].setCount(this.powerUpCount[kind]);
   }
 
   // ------------------------------------------------------------------ consultas
@@ -325,20 +411,24 @@ export class Spawner {
       if (!p.alive || p.lane !== lane) continue;
       if (p.z < zMin || p.z > zMax) continue;
       p.alive = false;
-      p.mesh.visible = false;
       collected.push(p.kind);
     }
+    // Reescreve na hora: sem isto o pickup coletado continuaria desenhado até
+    // o próximo `update`, um quadro depois de já ter sumido da lógica.
+    if (collected.length > 0) this.writePowerUpMatrices();
     return collected;
   }
 
   /** Desativa obstáculos vivos que estejam num raio de `distance` metros à frente (usado no revive). */
   clearAhead(distance: number): void {
+    let limpou = false;
     for (const o of this.obstacles) {
       if (o.alive && o.z < 0 && o.z > -distance) {
         o.alive = false;
-        o.mesh.visible = false;
+        limpou = true;
       }
     }
+    if (limpou) this.writeObstacleMatrices();
   }
 }
 

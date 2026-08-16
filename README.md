@@ -66,6 +66,8 @@ src/
   render/
     Stage.ts         cena, câmera, luzes, fog
     Post.ts          bloom, vignette e color grade, com degradação automática
+    instancing.ts    achata um modelo em InstancedMesh por material
+    geometry.ts      caixas pintadas, céu, silhuetas de prédio, textura de janelas
   ui/Hud.ts          HUD em DOM sobre o canvas
 ```
 
@@ -92,6 +94,14 @@ src/
 - **Temas fechados são o mesmo chunk com casca.** O túnel não é um sistema à parte: teto,
   paredes e luminárias entram fundidos na geometria do chunk. Custo em draw calls: **zero**.
   Medido — os 8 chunks desenham igual em todos os quatro ambientes.
+- **Nada repetido é desenhado peça a peça.** Obstáculos, power-ups, moedas e cenário saem
+  todos de `InstancedMesh`. Obstáculos já custaram 45 draw calls (61% do orçamento) sendo
+  desenhados um a um; hoje custam 11. Ver `render/instancing.ts`.
+- **Instanciar transfere o culling para nós.** Uma `InstancedMesh` é uma malha só para o
+  frustum culling, e como ela precisa de `frustumCulled = false`, quem decide o que entra é o
+  código: `Spawner` só escreve matriz para o que está dentro de uma janela de Z. Sem isso a
+  troca sai pela culatra — medido, 30 de 35 obstáculos vivos estavam além de −160, fora de
+  qualquer névoa.
 
 ## Páginas auxiliares
 
@@ -111,9 +121,13 @@ game.debugApplyPowerUp('magnet') // ativa um efeito sem depender de pickup no mu
 A checagem padrão antes de dar algo por pronto é rodar 20 seeds × 5 min pelo `debugAutoplay`
 e confirmar **zero mortes** — se o bot morre, há morte injusta ou obstáculo impossível.
 
-Orçamento de render: ≤ 80 draw calls e ≤ 60k triângulos. Pico medido hoje: **75 draw calls e
-23k triângulos**, num momento de tráfego denso. O tema mais pesado em triângulos é o túnel; em
-draw calls não há tema mais caro que outro, porque a casca do túnel vai fundida nos chunks.
+Orçamento de render: ≤ 80 draw calls e ≤ 60k triângulos. Pico medido hoje, já com o cenário
+rico: **40 draw calls e 15k triângulos** (antes da instanciação dos obstáculos eram 75 e 23k).
+O tema mais pesado em triângulos é o túnel; em draw calls não há tema mais caro que outro,
+porque a casca do túnel vai fundida nos chunks.
+
+Composição típica: 8 chunks · 11 obstáculos e power-ups · 4 cenário · 1 moedas · 1 personagem
+· 1 pórtico.
 
 Ao medir orçamento dirigindo `loop.step()` na mão, saiba que **a sonda do pós-processamento
 mede FPS real** e vai se desligar sozinha, porque o FPS que ela lê nesse modo não é de jogo.
