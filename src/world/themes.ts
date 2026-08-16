@@ -51,6 +51,34 @@ export interface Tema {
   saturacao: number;
   brilho: number;
   contraste: number;
+
+  // --- fronteira
+  /**
+   * Cor do pórtico que marca a entrada **neste** tema. O marco anuncia o que
+   * vem, não o que ficou para trás, então quem o pinta é sempre o tema de
+   * destino.
+   */
+  marcoCor: number;
+
+  /**
+   * Comprimento próprio do tema, em unidades de mundo. Ausente = usa
+   * `THEME_SEGMENT`. Existe porque o túnel não aguenta o mesmo fôlego de um
+   * ambiente aberto: um corredor fechado cansa muito antes de uma cidade.
+   */
+  segmento?: number;
+
+  /**
+   * Presente só nos temas **fechados**. A presença deste campo é o que faz o
+   * chunk ganhar teto, paredes e luminárias em vez de ser só chão — as cores
+   * ficam aqui, as medidas ficam em `Track.ts`, porque elas saem das folgas de
+   * colisão do jogo e não da paleta.
+   */
+  tunel?: {
+    parede: number;
+    teto: number;
+    /** Tira clara rente ao teto. É o bloom que a acende — não há luz nova. */
+    luminaria: number;
+  };
 }
 
 export const TEMAS: readonly Tema[] = [
@@ -79,6 +107,7 @@ export const TEMAS: readonly Tema[] = [
     saturacao: 0,
     brilho: 0.015,
     contraste: 0.06,
+    marcoCor: 0xe0a15f,
   },
   {
     nome: 'noite',
@@ -116,6 +145,8 @@ export const TEMAS: readonly Tema[] = [
     saturacao: -0.08,
     brilho: 0,
     contraste: 0.12,
+    // Violeta neon: com o limiar de bloom baixo da noite, o pórtico acende.
+    marcoCor: 0x7a5cd6,
   },
   {
     nome: 'deserto',
@@ -145,6 +176,65 @@ export const TEMAS: readonly Tema[] = [
     saturacao: 0.12,
     brilho: 0.01,
     contraste: 0.04,
+    marcoCor: 0xd9c9a3,
+  },
+  {
+    nome: 'tunel',
+    // Segmento próprio, mais curto que os 700 padrão. Um corredor fechado
+    // cansa muito antes de uma cidade aberta, e 700 unidades dariam quase
+    // meio minuto no mesmo lugar. 480 ainda deixa 300 de trecho estável antes
+    // de a transição de saída (180) começar a clarear o mundo.
+    segmento: 480,
+    tunel: {
+      parede: 0x262b38,
+      teto: 0x1b1f29,
+      // Quase branca de propósito: é ela que o bloom pega e transforma em
+      // luminária. Nenhuma luz de verdade é adicionada.
+      luminaria: 0xfff4d6,
+    },
+    // Dentro do corredor mal se vê céu, mas na boca vê-se — e é ali que uma
+    // paleta destoante apareceria. Por isso céu e névoa continuam casados.
+    ceuTopo: 0x05070c,
+    ceuHorizonte: 0x181d2a,
+    fog: 0x161b28,
+    // Névoa curta: é o que fecha o fim do corredor e dá a sensação de espaço
+    // apertado, em vez de um tubo que se vê até o fim.
+    fogNear: 24,
+    fogFar: 105,
+    // Mesma razão da noite: o personagem é escuro e some sobre preto. O
+    // asfalto do túnel é o mais claro que a atmosfera permite.
+    estrada: 0x3a4054,
+    bordaEstrada: 0x272b36,
+    meioFio: 0x6b7692,
+    faixa: 0xe6f0ff,
+    // Ficam atrás das paredes e nunca aparecem; a paleta escura é só garantia
+    // de que um vazamento não vire mancha clara.
+    predios: [0x1a1f2b, 0x151922, 0x212636, 0x11141c],
+    predioLargura: [4, 10],
+    // Baixos de propósito: é o que garante que a parede os esconda. Um prédio
+    // alto apareceria por cima do teto no canto da tela.
+    predioAltura: [0.5, 2.5],
+    // Não há sol dentro de um túnel, mas cortar a luz por realismo deixou o
+    // personagem invisível sobre o asfalto escuro — o mesmo erro que a noite
+    // já tinha ensinado. Estes valores são a luz de serviço do corredor:
+    // suficiente para ler a silhueta do que se controla, que vem antes da
+    // atmosfera.
+    sol: 0xb8c8ee,
+    solIntensidade: 1.25,
+    hemiCeu: 0x3d4460,
+    hemiChao: 0x1c1f29,
+    hemiIntensidade: 1.2,
+    // Limiar ainda mais baixo que o da noite: as luminárias são o único ponto
+    // de luz do ambiente e precisam mesmo acender.
+    bloomIntensidade: 1.3,
+    bloomLimiar: 0.45,
+    // A vinheta mais fechada do jogo — é o que vende o aperto do corredor.
+    // Não passa disto: mais que isso come as pistas laterais.
+    vinheta: 0.6,
+    saturacao: -0.12,
+    brilho: 0.02,
+    contraste: 0.12,
+    marcoCor: 0x4a5266,
   },
 ];
 
@@ -159,23 +249,65 @@ export interface ProgressoTema {
 }
 
 /**
+ * Comprimento de cada tema e do ciclo completo, resolvidos uma vez só.
+ *
+ * Enquanto todos os temas mediam o mesmo, um `%` resolvia o mapeamento. Com o
+ * túnel medindo menos que os outros isso deixou de valer, e a busca passa a
+ * ser numa tabela acumulada. É um laço de 4 posições rodando por passo, então
+ * o cache existe menos por custo e mais para não alocar um array por frame —
+ * a mesma razão dos rascunhos de `Color` em `Stage.ts`.
+ */
+let cacheComprimentos: { padrao: number; lista: number[]; ciclo: number } | null = null;
+
+function comprimentos(padrao: number) {
+  if (!cacheComprimentos || cacheComprimentos.padrao !== padrao) {
+    const lista = TEMAS.map((t) => t.segmento ?? padrao);
+    cacheComprimentos = {
+      padrao,
+      lista,
+      ciclo: lista.reduce((soma, n) => soma + n, 0),
+    };
+  }
+  return cacheComprimentos;
+}
+
+/** Comprimento do ciclo completo de temas — usado em teste e no HUD de debug. */
+export function cicloDeTemas(segmentoPadrao: number): number {
+  return comprimentos(segmentoPadrao).ciclo;
+}
+
+/**
  * Mapeia distância percorrida para tema. Determinístico de propósito: a mesma
  * distância dá sempre o mesmo resultado, então a bateria do bot continua
  * reproduzível e o tema pode ser conferido em teste.
  *
- * A transição ocupa os últimos `transicao` metros de cada segmento.
+ * `segmentoPadrao` vale para os temas que não declaram `segmento` próprio.
+ * A transição ocupa os últimos `transicao` metros do segmento corrente, seja
+ * ele qual for.
  */
 export function temaEmDistancia(
   distancia: number,
-  segmento: number,
+  segmentoPadrao: number,
   transicao: number,
 ): ProgressoTema {
-  const indice = Math.floor(distancia / segmento);
-  const atual = ((indice % TEMAS.length) + TEMAS.length) % TEMAS.length;
+  const { lista, ciclo } = comprimentos(segmentoPadrao);
+  // O `+ ciclo` extra mantém o resultado correto para distância negativa, que
+  // não acontece em jogo mas aparece em teste.
+  const noCiclo = ((distancia % ciclo) + ciclo) % ciclo;
+
+  let atual = 0;
+  let inicio = 0;
+  while (atual < lista.length - 1 && inicio + lista[atual]! <= noCiclo) {
+    inicio += lista[atual]!;
+    atual++;
+  }
   const proximo = (atual + 1) % TEMAS.length;
 
-  const dentroDoSegmento = distancia - indice * segmento;
-  const inicioDaTransicao = segmento - transicao;
+  const dentroDoSegmento = noCiclo - inicio;
+  // Um tema mais curto que a própria transição entraria já transicionando.
+  // Não é o caso hoje (o menor é 480 contra 180), mas o clamp evita que um
+  // ajuste futuro de comprimento crie um tema que nunca se estabiliza.
+  const inicioDaTransicao = Math.max(0, lista[atual]! - transicao);
   if (dentroDoSegmento < inicioDaTransicao) {
     return { atual, proximo: atual, t: 0 };
   }

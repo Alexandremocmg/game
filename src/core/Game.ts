@@ -296,6 +296,7 @@ export class Game {
           t: +p.t.toFixed(3),
           alvo: TEMAS[this.temaAlvo]!.nome,
           chunksNoTema: this.track.debugChunksNoTema,
+          marco: this.track.debugMarco,
         };
       })(),
       postEnabled: this.post.enabled,

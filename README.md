@@ -85,6 +85,13 @@ src/
   adotam o tema novo só quando cada peça dá a volta — e elas reciclam *além do alcance da
   névoa*. A fronteira entre dois ambientes nasce invisível e vem chegando pelo horizonte,
   em vez de o mundo piscar de cor. Ver `world/themes.ts`.
+- **O pórtico marca a emenda, não a distância.** O marco de fronteira é posicionado pelo
+  `Track` na borda dianteira do primeiro chunk que recicla no tema novo. Ancorá-lo na
+  distância teórica da troca erraria por até um chunk inteiro, porque a costura real nasce
+  onde a reciclagem acontece — não onde a conta diz.
+- **Temas fechados são o mesmo chunk com casca.** O túnel não é um sistema à parte: teto,
+  paredes e luminárias entram fundidos na geometria do chunk. Custo em draw calls: **zero**.
+  Medido — os 8 chunks desenham igual em todos os quatro ambientes.
 
 ## Páginas auxiliares
 
@@ -104,7 +111,14 @@ game.debugApplyPowerUp('magnet') // ativa um efeito sem depender de pickup no mu
 A checagem padrão antes de dar algo por pronto é rodar 20 seeds × 5 min pelo `debugAutoplay`
 e confirmar **zero mortes** — se o bot morre, há morte injusta ou obstáculo impossível.
 
-Orçamento de render: ≤ 80 draw calls e ≤ 60k triângulos.
+Orçamento de render: ≤ 80 draw calls e ≤ 60k triângulos. Pico medido hoje: **75 draw calls e
+23k triângulos**, num momento de tráfego denso. O tema mais pesado em triângulos é o túnel; em
+draw calls não há tema mais caro que outro, porque a casca do túnel vai fundida nos chunks.
+
+Ao medir orçamento dirigindo `loop.step()` na mão, saiba que **a sonda do pós-processamento
+mede FPS real** e vai se desligar sozinha, porque o FPS que ela lê nesse modo não é de jogo.
+Para um quadro representativo, zere `post.lowFpsTime` e adie `post.warmup` — e teste a sonda
+à parte, com o laço rodando de verdade.
 
 ### Integridade dos assets
 
@@ -133,8 +147,8 @@ ele devolve a bind pose, não a pose animada. Detalhes em
 
 Implementado: core loop, obstáculos e padrões por dificuldade, moedas com saldo persistido e
 "continuar" após a morte, power-ups (ímã, jetpack, multiplicador, prancha), pós-processamento,
-áudio, personagem animado e 3 temas de cenário (entardecer, noite, deserto) que se alternam
-conforme a distância.
+áudio, personagem animado, 4 temas de cenário (entardecer, noite, deserto e túnel) que se
+alternam conforme a distância, e um pórtico que marca a fronteira entre eles.
 
 Fora: loja e economia, missões diárias, personagens destraváveis, ranking online,
 empacotamento em APK.

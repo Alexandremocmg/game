@@ -138,3 +138,30 @@ O estado de voo reaproveitava o clipe do pulo, e sua configuração (`timeScale:
 a pose) sobrescreveu a do pulo.
 
 **Correção:** `clip.clone()` com nome distinto antes de criar a segunda ação.
+
+---
+
+## 9. Geometria dimensionada por dedução em vez de medição
+
+**Sintoma:** o túnel visto de fora tinha duas aletas finas e altas saindo do teto, em vez de
+ler como um portal. Apareceu no primeiro screenshot da boca do túnel.
+
+**Causa:** as paredes tinham sido projetadas com 12 de altura a partir de um cálculo no papel:
+numa tela larga o canto superior do frustum sai a ~21° acima da horizontal e ~47° para o lado,
+esse raio cruza a parede perto de y = 7, logo um teto de ±5.75 deixaria ver céu no canto.
+
+O cálculo estava certo e a conclusão errada — ele esquecia que **o teto intercepta o raio
+antes**. Um raio só passa pela borda lateral do teto se for raso o bastante para percorrer
+5.75 na horizontal antes de subir 1.7 na vertical; e um raio tão raso cruza a face interna da
+parede muito abaixo da altura do teto, onde ela o pega. As duas superfícies se cobrem
+mutuamente. A parede alta não vedava nada que a parede baixa já não vedasse.
+
+**Correção:** varredura paramétrica de raios sobre a altura da parede — 30 mil amostras por
+proporção, tela inteira, FOV máximo, câmera nos dois extremos laterais, em 16:9, 21:9, 32:9 e
+9:16. Resultado: **veda a partir de 6.5**, que é a altura do próprio teto. As paredes desceram
+de 12 para 6.5 e as aletas sumiram.
+
+**Lição:** o erro não foi a conta, foi confiar nela. Quando o número define geometria que o
+jogador vê, a varredura custa uma chamada e responde o que a dedução só aproxima — e ainda
+devolve a **margem**, que a dedução nem tenta dar. Vale o mesmo espírito do incidente 4: a
+diferença entre achar e saber é medir.
