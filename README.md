@@ -28,6 +28,8 @@ Abre em `http://localhost:5173`. Adicione `?debug` para o HUD com FPS, draw call
 - **Repositório GitHub:** [https://github.com/Alexandremocmg/game](https://github.com/Alexandremocmg/game)
 - **CI/CD:** deploy automático via **GitHub Actions** (`.github/workflows/deploy.yml`). A cada
   push na `main`, a Action valida os assets, compila com o Vite e publica no GitHub Pages.
+- **Cópia na VPS:** [https://corrida.kabemmanager.online](https://corrida.kabemmanager.online),
+  atualizada **à mão** (a Action não toca nela). Veja [docs/hospedagem-vps.md](docs/hospedagem-vps.md).
 
 O `vite.config.ts` usa `base: './'` — caminhos relativos são obrigatórios porque o Pages
 serve o jogo a partir do subdiretório `/game/`, e caminhos absolutos quebrariam.
@@ -166,6 +168,8 @@ ele devolve a bind pose, não a pose animada. Detalhes em
   Mixamo e chega ao jogo, e as armadilhas de `SkinnedMesh`, root motion e orientação.
 - [docs/incidentes.md](docs/incidentes.md) — falhas que já aconteceram, causa raiz e o que
   as impede de voltar.
+- [docs/hospedagem-vps.md](docs/hospedagem-vps.md) — a cópia do jogo na VPS: onde roda, como
+  atualizar (build incluso), como conferir e como voltar atrás.
 - [CREDITS.md](CREDITS.md) — atribuições obrigatórias dos assets (CC-BY).
 
 ## Escopo
