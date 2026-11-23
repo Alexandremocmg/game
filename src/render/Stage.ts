@@ -39,7 +39,16 @@ export class Stage {
     this.renderer.toneMappingExposure = 1.05;
 
     this.ceu = makeSkyGradient(inicial.ceuTopo, inicial.ceuHorizonte);
-    this.scene.background = this.ceu.texture;
+    // O fundo equirretangular de Scene passa por um cache de cubemap.
+    // Na cúpula, cada atualização do canvas é amostrada diretamente.
+    const dome = new THREE.SphereGeometry(250, 32, 16);
+    const uv = dome.attributes.uv!;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+    const sky = new THREE.Mesh(dome, new THREE.MeshBasicMaterial({
+      map: this.ceu.texture, side: THREE.BackSide, fog: false, depthWrite: false, depthTest: false,
+    }));
+    sky.renderOrder = -1;
+    this.scene.add(sky);
 
     // Névoa na cor do horizonte: é o que esconde o surgimento dos chunks distantes.
     this.fog = new THREE.Fog(inicial.fog, inicial.fogNear, inicial.fogFar);

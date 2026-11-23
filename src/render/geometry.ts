@@ -87,7 +87,6 @@ export function makeSkyGradient(top: number, horizon: number): {
   const ctx = canvas.getContext('2d')!;
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.mapping = THREE.EquirectangularReflectionMapping;
   texture.colorSpace = THREE.SRGBColorSpace;
 
   /**
