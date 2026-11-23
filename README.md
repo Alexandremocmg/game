@@ -43,6 +43,8 @@ normal.
 Deslize para os lados para trocar de pista, para cima para pular, para baixo para rolar.
 No desktop, as setas do teclado.
 
+Nos primeiros 30 segundos, a avenida ao entardecer passa por três quarteirões: Vila Ipê, Feira da Estação e o trecho do Viaduto da Av. do Sol. As lojas, as calçadas e os pilares fazem parte do cenário. Ao reiniciar, você volta à entrada da avenida.
+
 ## Arquitetura
 
 ```

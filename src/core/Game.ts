@@ -12,6 +12,7 @@ import { Hud } from '../ui/Hud';
 import { OBSTACLE_SPECS, type ObstacleKind } from '../world/obstacleSpecs';
 import { POWER_UP_SPECS, type PowerUpKind } from '../world/powerUpSpecs';
 import { Scenery } from '../world/Scenery';
+import { SunsetAvenue } from '../world/SunsetAvenue';
 import { Spawner } from '../world/Spawner';
 import { TEMAS, temaEmDistancia } from '../world/themes';
 import { Track } from '../world/Track';
@@ -33,6 +34,7 @@ export class Game {
   private readonly post: Post;
   private readonly track: Track;
   private readonly scenery: Scenery;
+  private readonly avenue: SunsetAvenue;
   private readonly spawner: Spawner;
   private readonly player: Player;
   private readonly hud = new Hud();
@@ -77,6 +79,7 @@ export class Game {
     this.post = new Post(this.stage.renderer, this.stage.scene, this.stage.camera);
     this.track = new Track(this.stage.scene);
     this.scenery = new Scenery(this.stage.scene);
+    this.avenue = new SunsetAvenue(this.stage.scene);
     this.spawner = new Spawner(this.stage.scene, 1, models, powerUpModels);
     this.player = new Player(this.stage.scene, playerModel);
 
@@ -142,6 +145,7 @@ export class Game {
     this.temaAlvo = 0;
     this.track.reset(TEMAS[0]!);
     this.scenery.reset(TEMAS[0]!);
+    this.avenue.update(0);
     this.stage.aplicarTema(TEMAS[0]!, TEMAS[0]!, 0);
     this.post.aplicarTema(TEMAS[0]!, TEMAS[0]!, 0);
     this.input.clear();
@@ -297,6 +301,7 @@ export class Game {
       draws: info.calls,
       triangles: info.triangles,
       chunkZs: this.track.debugZs,
+      avenue: this.avenue.debug,
       tema: (() => {
         const p = temaEmDistancia(this.distance, THEME_SEGMENT, THEME_TRANSITION);
         return {
@@ -493,6 +498,7 @@ export class Game {
     this.atualizarTema();
     this.track.update(dz);
     this.scenery.update(dz);
+    this.avenue.update(this.distance);
     this.spawner.update(dz, this.distance);
 
     // Câmera suavizada aqui, e não no render, para não depender da taxa de quadros.
