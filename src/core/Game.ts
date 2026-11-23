@@ -310,6 +310,7 @@ export class Game {
           t: +p.t.toFixed(3),
           alvo: TEMAS[this.temaAlvo]!.nome,
           chunksNoTema: this.track.debugChunksNoTema,
+          nightBlocks: this.track.debugNightBlocks,
           marco: this.track.debugMarco,
         };
       })(),

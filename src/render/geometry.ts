@@ -226,31 +226,76 @@ export function makeBuildingShapes(): THREE.BufferGeometry[] {
  * instância), o carro tem tamanho quase fixo, então a geometria nasce direto
  * no tamanho final e a instância só reposiciona.
  *
- * A cor por instância de uma `InstancedMesh` **multiplica** a cor por vértice
- * já assada na geometria — não a substitui. É o mesmo mecanismo dos prédios,
- * mas aqui rende mais: lataria e cabine em branco (1×instância = a cor da
- * instância aparece pura) e rodas/parachoques em cinza quase preto
- * (1×instância continua escuro, qualquer que seja a cor sorteada) — um único
- * material serve tanto a carroceria colorida por tema quanto os detalhes que
- * nunca devem colorir.
+ * A lataria recebe a cor por instância. Vidros, rodas e iluminação usam
+ * cores por vértice em um segundo lote para manter o contraste.
  */
-export function makeCarShape(): THREE.BufferGeometry {
-  const detalhe = 0x14161c; // quase preto: multiplicado por qualquer cor, continua escuro
-  const partes = [
-    // corpo — branco, para a cor da instância aparecer pura
-    box(1.75, 0.62, 4.1, 0, 0.62, 0, 0xffffff),
-    // cabine, recuada para a metade traseira
-    box(1.5, 0.5, 2.0, 0, 1.18, -0.35, 0xffffff),
-    box(1.8, 0.22, 0.28, 0, 0.34, 1.95, detalhe),
-    box(1.8, 0.22, 0.28, 0, 0.34, -1.95, detalhe),
+export function makeCarShape(): { body: THREE.BufferGeometry; trim: THREE.BufferGeometry } {
+  const body = [
+    carShell([
+      [-2.14,.71,.38,.72],[-1.96,.88,.31,.91],[-1.48,.93,.26,1.00],[-.45,.94,.26,.99],
+      [.62,.92,.26,.94],[1.52,.90,.30,.84],[2.12,.73,.36,.73],
+    ],0xffffff),
+    carShell([[-1.14,.63,1.16,1.40],[-.86,.68,1.27,1.50],[.06,.64,1.28,1.50],[.23,.58,1.18,1.43]],0xffffff),
+    box(.20,.165,.26,-.95,1.11,.45,0xffffff),
+    box(.20,.165,.26,.95,1.11,.45,0xffffff),
   ];
-  // quatro rodas, uma em cada canto
-  for (const x of [-0.78, 0.78]) {
-    for (const z of [-1.3, 1.3]) {
-      partes.push(box(0.4, 0.62, 0.62, x, 0.31, z, detalhe));
+  const trim = [
+    carShell([[-1.77,.72,.87,.97],[-1.04,.71,.9,1.43],[.13,.71,.9,1.43],[.86,.78,.87,.94]],0x344f61),
+    box(1.45,.18,.15,0,.39,2.04,0x242c34),
+    box(1.45,.16,.14,0,.42,-2.08,0x242c34),
+    box(.81,.17,.057,0,.58,2.14,0x28323b),
+    box(.36,.118,.072,0,.72,-2.112,0xcec8ab),
+  ];
+  for (const side of [-1,1]) {
+    trim.push(box(.33,.145,.11,side*.54,.72,2.093,0xffe5b2));
+    trim.push(box(.32,.133,.10,side*.55,.76,-2.06,0xff5350));
+    trim.push(box(.085,.048,2.28,side*.927,.51,-.05,0xa5a69c));
+    trim.push(box(.06,.052,.22,side*.937,.86,-.27,0x333e47));
+    trim.push(box(.065,.053,.22,side*.937,.86,-.88,0x333e47));
+    trim.push(box(.037,.46,.11,side*.70,1.17,-.45,0x252e36));
+    for (const z of [-1.35,1.37]) {
+      for (const [radius,width,x,color] of [
+        [.37,.235,.795,0x16191d],[.244,.047,.924,0x929ba0],[.093,.049,.953,0x4a575e],
+      ] as const) {
+        const wheel=new THREE.CylinderGeometry(radius,radius,width,10,1);
+        wheel.rotateZ(Math.PI/2);
+        wheel.translate(side*x,.37,z);
+        trim.push(paint(wheel,color));
+      }
     }
   }
-  return mergeGeometries(partes, false)!;
+  const merge=(parts: THREE.BufferGeometry[])=>{
+    const geometry=mergeGeometries(parts,false)!;
+    parts.forEach(part=>part.dispose());
+    return geometry;
+  };
+  return {body:merge(body),trim:merge(trim)};
+}
+
+function carShell(profile: readonly (readonly [number,number,number,number])[], color: number): THREE.BufferGeometry {
+  const coords: number[] = [], indices: number[] = [];
+  for (const [z,w,low,high] of profile) {
+    const bevel=Math.min(.105,(high-low)*.29);
+    const crossSection=[
+      [-w*.82,low],[-w,low+bevel],[-w,high-bevel],[-w*.79,high],
+      [w*.79,high],[w,high-bevel],[w,low+bevel],[w*.82,low],
+    ];
+    for (const [x,y] of crossSection) coords.push(x!,y!,z);
+  }
+  for (let section=0;section<profile.length-1;section++)for(let side=0;side<8;side++){
+    const a=section*8+side,b=section*8+(side+1)%8;
+    indices.push(a,a+8,b,a+8,b+8,b);
+  }
+  for(let i=1;i<7;i++){
+    const last=(profile.length-1)*8;
+    indices.push(0,i,i+1,last,last+i+1,last+i);
+  }
+  const shell=new THREE.BufferGeometry();
+  shell.setAttribute('position',new THREE.Float32BufferAttribute(coords,3));
+  shell.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(coords.length/3*2),2));
+  shell.setIndex(indices);
+  shell.computeVertexNormals();
+  return paint(shell,color);
 }
 
 /**

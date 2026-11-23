@@ -245,7 +245,7 @@ export const TEMAS: readonly Tema[] = [
     // A paleta original (luminância 27–34) ficava igual ou mais escura que o
     // próprio asfalto (34) — o carro tinha a forma certa mas contraste zero,
     // e desaparecia mesmo de perfil. Esta sobe para 42–49, moody mas visível.
-    carros: { cores: [0x2e2e3e, 0x3a2440, 0x24343f, 0x3a2530], quantidade: 12 },
+    carros: { cores: [0x536d8b, 0x785068, 0x4e6b68, 0x9c595c, 0xaab0b8], quantidade: 12 },
   },
   {
     nome: 'deserto',

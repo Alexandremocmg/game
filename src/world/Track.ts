@@ -6,6 +6,7 @@ import {
 } from '../config';
 import { box } from '../render/geometry';
 import { TEMAS, type Tema } from './themes';
+import { NightStreet } from './NightStreet';
 
 /**
  * Trilha infinita por reciclagem de chunks.
@@ -70,6 +71,7 @@ const TETO_MEIA_LARGURA = 5.75;
 export class Track {
   private readonly meshes: THREE.Mesh[] = [];
   private readonly zs: number[] = [];
+  private readonly nightBlocks: THREE.Group[] = [];
   /** Uma geometria por tema, construída sob demanda e reaproveitada depois. */
   private readonly geometrias = new Map<string, THREE.BufferGeometry>();
   private tema: Tema;
@@ -92,6 +94,7 @@ export class Track {
     // atributo de vértice, então trocar de tema não custa draw call nenhum.
     const material = new THREE.MeshLambertMaterial({ vertexColors: true });
     const geometria = this.geometriaDe(this.tema);
+    const night = new NightStreet();
 
     for (let i = 0; i < CHUNK_POOL_SIZE; i++) {
       const mesh = new THREE.Mesh(geometria, material);
@@ -99,6 +102,9 @@ export class Track {
       mesh.position.z = z;
       this.zs.push(z);
       this.meshes.push(mesh);
+      const block = night.createChunk(i);
+      this.nightBlocks.push(block);
+      mesh.add(block);
       scene.add(mesh);
     }
 
@@ -124,6 +130,10 @@ export class Track {
   get debugChunksNoTema(): number {
     const alvo = this.geometriaDe(this.tema);
     return this.meshes.filter((m) => m.geometry === alvo).length;
+  }
+
+  get debugNightBlocks(): number {
+    return this.nightBlocks.filter(block => block.visible).length;
   }
 
   /**
@@ -165,6 +175,7 @@ export class Track {
           this.marco.visible = true;
         }
         this.meshes[i]!.geometry = geometriaAtual;
+        this.nightBlocks[i]!.visible = this.tema.nome === 'noite';
       }
       this.zs[i] = z;
       this.meshes[i]!.position.z = z;
@@ -182,6 +193,7 @@ export class Track {
       this.zs[i] = z;
       this.meshes[i]!.position.z = z;
       this.meshes[i]!.geometry = geometria;
+      this.nightBlocks[i]!.visible = tema.nome === 'noite';
     }
   }
 

@@ -45,6 +45,8 @@ No desktop, as setas do teclado.
 
 Nos primeiros 30 segundos, a avenida ao entardecer passa por três quarteirões: Vila Ipê, Feira da Estação e o trecho do Viaduto da Av. do Sol. As lojas, as calçadas e os pilares fazem parte do cenário. Ao reiniciar, você volta à entrada da avenida.
 
+Ao cair da noite, a cidade dá lugar a uma rua comercial depois da chuva, com vitrines abertas, letreiros como Café Contraluz e Disco Vaga-Lume e reflexos coloridos perto do meio-fio.
+
 ## Arquitetura
 
 ```

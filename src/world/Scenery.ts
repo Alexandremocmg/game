@@ -30,8 +30,8 @@ const FAIXA_LONGE = { xMin: TRACK_WIDTH / 2 + 18, xLargura: 26, escala: 1.7 };
  * inalcançável: o obstáculo mais largo do jogo chega a |x| = 3,2 e o meio-fio
  * termina em 4,4.
  */
-const CARRO_X_MIN = 5.0;
-const CARRO_X_LARGURA = 0.8;
+const CARRO_X_MIN = TRACK_WIDTH / 2 + 1.46;
+const CARRO_X_LARGURA = 0.7;
 /** Maior `quantidade` entre os temas — capacidade fixa da `InstancedMesh`. */
 const CARRO_CAPACIDADE = 12;
 
@@ -61,6 +61,7 @@ export class Scenery {
   // e a forma dos prédios — nunca a frota inteira aparecendo ou sumindo de
   // uma vez.
   private readonly carroMesh: THREE.InstancedMesh;
+  private readonly carroDetalhes: THREE.InstancedMesh;
   private readonly carroZs = new Float32Array(CARRO_CAPACIDADE);
   private readonly carroXs = new Float32Array(CARRO_CAPACIDADE);
   private readonly carroCor = new Uint32Array(CARRO_CAPACIDADE);
@@ -98,14 +99,15 @@ export class Scenery {
       this.zs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
     }
 
-    this.carroMesh = new THREE.InstancedMesh(
-      makeCarShape(),
-      new THREE.MeshLambertMaterial({ vertexColors: true }),
-      CARRO_CAPACIDADE,
-    );
-    this.carroMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.carroMesh.frustumCulled = false;
-    scene.add(this.carroMesh);
+    const car = makeCarShape();
+    const material = new THREE.MeshLambertMaterial({vertexColors: true});
+    this.carroMesh = new THREE.InstancedMesh(car.body, material, CARRO_CAPACIDADE);
+    this.carroDetalhes = new THREE.InstancedMesh(car.trim, material, CARRO_CAPACIDADE);
+    for(const mesh of [this.carroMesh,this.carroDetalhes]){
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled=false;
+      scene.add(mesh);
+    }
     for (let i = 0; i < CARRO_CAPACIDADE; i++) {
       this.randomizeCarro(i);
       this.carroZs[i] = CHUNK_RECYCLE_Z - Math.random() * TRACK_SPAN;
@@ -116,7 +118,7 @@ export class Scenery {
 
   /** Quantos draw calls o cenário custa — usado na conferência de orçamento. */
   get drawCalls(): number {
-    return this.formas.length + 1;
+    return this.formas.length + 2;
   }
 
   /**
@@ -256,14 +258,17 @@ export class Scenery {
       // vira um bloco irreconhecível. De perfil, o degrau da cabine e as
       // rodas aparecem e a forma lê como carro.
       this.dummy.rotation.set(0, this.carroVirado[i]! ? Math.PI : 0, 0);
-      this.dummy.scale.setScalar(1);
+      this.dummy.scale.set(1,i%3===0?1.06:1,i%3===0?.88:1);
       this.dummy.updateMatrix();
       this.carroMesh.setMatrixAt(n, this.dummy.matrix);
+      this.carroDetalhes.setMatrixAt(n,this.dummy.matrix);
       this.carroMesh.setColorAt(n, this.corAux.setHex(this.carroCor[i]!));
       n++;
     }
     this.carroMesh.count = n;
+    this.carroDetalhes.count = n;
     this.carroMesh.instanceMatrix.needsUpdate = true;
+    this.carroDetalhes.instanceMatrix.needsUpdate = true;
     if (this.carroMesh.instanceColor) this.carroMesh.instanceColor.needsUpdate = true;
   }
 }
