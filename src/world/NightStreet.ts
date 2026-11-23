@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CHUNK_LENGTH, TRACK_WIDTH } from '../config';
-import { box, paint } from '../render/geometry';
+import { box } from '../render/geometry';
 
 const shops = [
   ['CAFÉ CONTRALUZ', '#ffac74', 0x44364c],
