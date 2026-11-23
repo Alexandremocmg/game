@@ -115,11 +115,11 @@ export function makeSkyGradient(top: number, horizon: number): {
         // e pelos prédios de qualquer jeito.
         const x = Math.random() * c.width;
         const y = Math.random() * c.height * horizonte;
-        const brilho = 0.45 + Math.random() * 0.55;
+        const brilho = 0.18 + Math.random() * 0.44;
         cx.fillStyle = `rgba(255,255,255,${brilho.toFixed(2)})`;
         // Perto do horizonte a estrela some na névoa; concentrar tamanho no
         // alto é o que faz o céu parecer profundo em vez de chapado.
-        const r = Math.random() < 0.82 ? 1.3 : 2.2;
+        const r = Math.random() < 0.88 ? 0.68 : 1.10;
         cx.fillRect(x, y, r, r);
       }
     }

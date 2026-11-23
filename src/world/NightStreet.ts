@@ -65,6 +65,9 @@ function makeBlock(first: number): [THREE.BufferGeometry[], THREE.BufferGeometry
     put(1.57, .14, 13.9, side * (front - .56), 3.04, shopZ, 0x343149);
     put(.23, .97, 6.55, side * (front - .33), 3.79, shopZ + 1.6, 0x292136);
     names.push(atlasPlane(6.4, .84, side * (front - .46), 3.79, shopZ + 1.6, index, -side * Math.PI / 2));
+    const bladeX = side * (front - 1.08);
+    put(1.9, .58, .13, bladeX, 3.22, shopZ + 4.2, 0x263149);
+    names.push(atlasPlane(1.82, .51, bladeX, 3.22, shopZ + 4.28, index, 0));
 
     const lamp = side * (edge + 1.53);
     put(.13, 4.4, .13, lamp, 2.37, 8.7, 0x323e58);

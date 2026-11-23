@@ -181,7 +181,7 @@ export const TEMAS: readonly Tema[] = [
       // Densidade alta porque a fatia de céu que o jogador vê entre os prédios
       // é estreita: espalhadas pela esfera inteira, 300 estrelas somem.
       estrelas: 900,
-      astro: { azimute: 0.022, elevacao: 15, raio: 6, cor: 0xf4f6ff, halo: 2.6, haloCor: 0x9fb4ff },
+      astro: { azimute: 0.022, elevacao: 15, raio: 3.2, cor: 0xf4f6ff, halo: 2.8, haloCor: 0x9fb4ff },
     },
     fog: 0x352050,
     fogNear: 35,
